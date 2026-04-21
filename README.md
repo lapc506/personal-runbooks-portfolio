@@ -1,0 +1,21 @@
+# Personal Runbooks Portfolio
+
+Bash and PowerShell runbooks I've implemented during my career, organized by operating system.
+
+## Runbooks
+
+### Linux
+
+- [`Ubuntu_GDM_Force_Wayland_on_NVIDIA`](./linux/Ubuntu_GDM_Force_Wayland_on_NVIDIA) — override Ubuntu's default `gdm_prefer_xorg` udev rule to force a Wayland session on GDM autologin with NVIDIA proprietary/open driver, without reboot.
+
+### macOS
+
+- [`macOS_Upgrade_Reboot_Deferral`](./macos/macOS_Upgrade_Reboot_Deferral) — silent macOS major-upgrade deployment with delayed-reboot UX on Intel Macs, for Jamf-managed fleets.
+
+### Windows
+
+_(Placeholder for future PowerShell runbooks.)_
+
+### Cross-platform
+
+_(Placeholder for future tooling that applies to multiple OSes.)_
