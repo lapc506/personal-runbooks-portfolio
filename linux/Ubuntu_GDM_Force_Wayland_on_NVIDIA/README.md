@@ -347,6 +347,10 @@ The change applies on the next launch of each profile — Chrome reads Preferenc
 
 * **`dash-to-dock` / Ubuntu Dock may not respond immediately after `systemctl restart gdm3`.** The extension loses state when its host GNOME Shell dies and re-initializes on the new session. Clicks on pinned launchers may not register for a few seconds as the extension rehydrates. A second logout/login (after Wayland is confirmed) is a reliable way to reset the dock extension cleanly.
 
+## Related runbooks
+
+* [`GNOME_Keyring_Empty_Password_Under_Autologin`](../GNOME_Keyring_Empty_Password_Under_Autologin) — **required follow-up after this runbook**. The manual session pick via the gear ⚙ triggers `pam_gnome_keyring.so password` to re-sync the keyring password with the user's login password, re-introducing the "keyring did not unlock at login" popup that autologin setups previously eliminated. Re-run that runbook's script after completing this one.
+
 ## References
 
 * [GDM upstream (GNOME GitLab)](https://gitlab.gnome.org/GNOME/gdm)

@@ -7,6 +7,7 @@ Bash and PowerShell runbooks I've implemented during my career, organized by ope
 ### Linux
 
 - [`Ubuntu_GDM_Force_Wayland_on_NVIDIA`](./linux/Ubuntu_GDM_Force_Wayland_on_NVIDIA) — override Ubuntu's default `gdm_prefer_xorg` udev rule to force a Wayland session on GDM autologin with NVIDIA proprietary/open driver, without reboot.
+- [`GNOME_Keyring_Empty_Password_Under_Autologin`](./linux/GNOME_Keyring_Empty_Password_Under_Autologin) — eliminate the "El depósito de claves de inicio de sesión no se desbloqueó" popup on autologin/fingerprint/face systems by setting the keyring password to empty via D-Bus `ChangeWithMasterPassword`.
 
 ### macOS
 
