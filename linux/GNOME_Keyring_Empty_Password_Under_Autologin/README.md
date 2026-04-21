@@ -2,6 +2,8 @@
 
 _Applies to: Ubuntu 24.04 LTS, GNOME 46, GDM 46.x. Works under X11 and Wayland sessions, on any hardware._
 
+> **Verified on:** Ubuntu 24.04 LTS + GDM 46.2 + NVIDIA 580-open + kernel 6.17 + Wayland session + autologin enabled. After running `keyring-change-password.py` and rebooting, the "El depósito de claves de inicio de sesión no se desbloqueó" popup no longer appears at login, and apps access saved credentials normally.
+
 ## Context
 
 Under Ubuntu with `AutomaticLoginEnable=True` in `/etc/gdm3/custom.conf`, every time the user logs in (or the system reboots), some apps that try to access saved credentials trigger this popup:
@@ -87,11 +89,13 @@ Required packages (Ubuntu 24.04): `python3-secretstorage`, `python3-jeepney`. Bo
 After running the script:
 
 ```bash
-# Logout + login (or reboot for cleanest test)
-# On next login, open any app that uses saved credentials (email, Chrome).
-# No keyring popup should appear.
+# Logout + login (autologin-based systems will re-login automatically).
+# Reboot is preferred for the cleanest test — it resets systemd-user sessions,
+# gnome-keyring-daemon, dbus-daemon, and any caches in between. On an autologin
+# setup, reboot → GDM autologin → fresh gnome-keyring-daemon tries to open
+# login.keyring → succeeds with empty password → no popup.
 
-# Also verify the keyring file was re-encrypted (mtime should be now):
+# Verify the keyring file was re-encrypted (mtime should be recent):
 stat -c '%y' ~/.local/share/keyrings/login.keyring
 
 # Confirm daemon can auto-open:
@@ -103,6 +107,8 @@ print(f'locked={col.is_locked()} items={len(list(col.get_all_items()))}')
 "
 # Expected: locked=False items=<count>, no prompt
 ```
+
+**Why reboot over logout-only:** logout kills the user-session systemd tree + display-server processes but leaves `/run/` state and certain daemon caches intact. On a system where you just made a config change, reboot is a deterministic "empty all caches at every level" test — if the fix works after reboot, you know it survives real-world startup conditions. Logout alone is a weaker test that can hide state-leak bugs.
 
 ## The re-sync gotcha
 
@@ -161,3 +167,10 @@ rm ~/.local/share/keyrings/login.keyring
 * [GNOME gnome-keyring source](https://gitlab.gnome.org/GNOME/gnome-keyring) — see `daemon/dbus/gkd-secret-*.c` for `ChangeWithMasterPassword` implementation.
 * [freedesktop Secret Service API](https://specifications.freedesktop.org/secret-service/latest/) — the standard interface `org.freedesktop.Secret.*`.
 * [pam_gnome_keyring man page](https://manpages.ubuntu.com/manpages/noble/en/man8/pam_gnome_keyring.8.html) — module flags + behavior.
+
+## Debugging lessons
+
+1. **`pam_gnome_keyring.so password` is a silent auto-sync, not a user-invoked command.** The re-sync happens the moment you type your login password in a GDM password field that runs through the standard PAM stack. There's no confirmation prompt, no log line telling you "your keyring password was changed". The effect only becomes visible at the *next* login (no popup → popup). If you see the popup return after it was gone, search your memory for "did I type my password somewhere recently?" — that's almost always the trigger.
+2. **Empty-password keyring is a safety trade-off, not a security fix.** The keyring is still "encrypted" in the ext4 file sense (not plain-text), but the derivation input is empty → any process with read access to `~/.local/share/keyrings/login.keyring` can reconstruct the key in milliseconds. Under full-disk encryption (LUKS), this is fine (attacker needs disk passphrase first). Without FDE, treat this file as plain-text and don't store anything more sensitive than session cookies in it.
+3. **Reboot > logout when verifying system-level auth changes.** A logout closes user-session processes and leaves `/run/` caches intact. A reboot wipes tmpfs, restarts all daemons from cold, and exercises the full boot path. When a fix "works after logout but fails after reboot", it means there's state leaking somewhere — the reboot catches the bug. Prefer reboot for the final verification step, even if it takes 30 extra seconds.
+4. **`/tmp/` in Ubuntu 24.04 is not persistent across reboots** — `systemd-tmpfiles-clean.service` applies `Q 10d` rules from `/usr/lib/tmpfiles.d/tmp.conf` at boot. Any script you leave in `/tmp/` may vanish. For scripts you want to re-run after future re-syncs, keep them in `~/.local/bin/` or in this repo's clone — not `/tmp/`.
