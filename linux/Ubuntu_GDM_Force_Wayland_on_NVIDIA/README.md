@@ -2,7 +2,7 @@
 
 _Applies to: Ubuntu 24.04 LTS, GDM 46.x, NVIDIA driver 580-open (or any version ≥ 470), hybrid graphics (Intel iGPU + discrete NVIDIA)._
 
-> **⚠ Reader's summary:** what looked like "tweak one config file" turned into a 3-attempt escalation. Each attempt uncovered a new layer of the problem. The final reliable fix is **Attempt 3** below. The earlier attempts are kept in the doc because they capture the failure modes you should expect to hit and why each intermediate fix alone is insufficient.
+> **⚠ Reader's summary:** what looked like "tweak one config file" turned into a 3-attempt escalation. Each attempt uncovered a new layer of the problem. **The final working solution is the cumulative application of all three attempts**, not Attempt 3 alone. Applying them in order — Attempt 1 establishes the preference plumbing, Attempt 2 disables autologin so GDM must render the login screen, Attempt 3 restarts GDM with a de-aliased session list — each step removes a different obstacle in the stack. On the test machine this sequence resulted in a Wayland session confirmed by `echo $XDG_SESSION_TYPE` returning `wayland`, with autologin re-enabled afterwards and still landing in Wayland on subsequent logins.
 
 ## Context
 
@@ -167,8 +167,16 @@ Once confirmed, re-enable autologin so future logins skip the picker but stay in
 
 ```bash
 sudo sed -i 's|^AutomaticLoginEnable=False|AutomaticLoginEnable=True|' /etc/gdm3/custom.conf
-# Logout. Next autologin uses the last-picked session (Wayland).
 ```
+
+Then logout one more time and verify that autologin resumes but still lands in Wayland:
+
+```bash
+# After autologin completes, in a fresh terminal:
+echo $XDG_SESSION_TYPE   # → wayland (still, without any picker interaction)
+```
+
+This last verification step confirms that GDM persisted the manual session choice in `/var/lib/AccountsService/users/<username>` and is honoring it on subsequent autologins. If this step returns `x11`, something reverted AccountsService — revisit Attempts 1 and 3 and confirm the udev rule + xsessions/ubuntu.desktop rename are still in place.
 
 ## Rollback
 
@@ -226,3 +234,4 @@ sudo sed -i 's|^AutomaticLoginEnable=False|AutomaticLoginEnable=True|' /etc/gdm3
 3. **Display managers cache their session enumeration at daemon startup.** Editing `/usr/share/xsessions/` or `/usr/share/wayland-sessions/` after GDM has started requires a `systemctl restart gdm3` for GDM to notice. This also applies to dconf/gsettings schemas that GDM reads at its own startup.
 4. **Session pickers dedupe by `Name=`.** If `/usr/share/xsessions/foo.desktop` and `/usr/share/wayland-sessions/foo.desktop` both have `Name=Foo`, the picker shows one entry, and which one executes depends on the display-server preference. Removing the X11 alias is a blunt but reliable way to force the Wayland version.
 5. **When config-file hacking fails, let the app persist the choice itself.** GDM's gear ⚙ writes to AccountsService with the EXACT internal schema the autologin flow later consumes. Emulating that schema from outside is fragile; letting GDM's own UI save it is reliable — but only after the picker is functional, which requires everything else in this runbook.
+6. **A fix that works is rarely a single change.** The final config on the test machine ended up being: (a) new udev rule, (b) `PreferredDisplayServer=wayland` in custom.conf, (c) AccountsService `Session=ubuntu-wayland` with `XSession=` removed, (d) `/usr/share/xsessions/ubuntu.desktop` moved aside, (e) gdm3 restarted, (f) autologin re-enabled after manual session pick. Documenting only the last step ("pick Wayland from the gear") would erase the scaffolding that made it possible. Runbooks should capture the whole stack, even the layers that "seem redundant" in hindsight — they're not, they're the preconditions that made the last step viable.
