@@ -251,6 +251,84 @@ There is no clean prevention because the abrupt kill comes from `systemctl resta
 1. **Before running `restart gdm3`**: close all Electron apps manually via their "File → Quit" menu. That triggers clean shutdown and releases the locks.
 2. **After any unexpected crash/OOM/gdm3-restart**: run `clean-electron-zombie-locks.sh` proactively before attempting to relaunch.
 
+## Post-fix troubleshooting: custom pinned launchers don't appear in Ubuntu Dock
+
+After the Wayland switch, pinning custom `.desktop` files via `gsettings set org.gnome.shell favorite-apps` may appear to succeed but the dock doesn't show them. You verify with `gsettings get` and the returned list includes your custom launchers — yet the dock keeps showing the old set of pinned apps.
+
+### Root cause: `gsettings` and `dconf` diverged
+
+Run both queries in the same shell to confirm:
+
+```bash
+gsettings get org.gnome.shell favorite-apps    # returns LIST A (with your custom launchers)
+dconf read /org/gnome/shell/favorite-apps      # returns LIST B (without them)
+```
+
+Same key, same user, same second, different values. This is a signal that `gsettings set` completed but something (most likely GNOME Shell's own write-back during session init) clobbered the value before it landed in `~/.config/dconf/user`. The dock reads from dconf, which has the pre-change snapshot.
+
+### Fix: bypass gsettings with `dconf write`
+
+See [`fix-dock-and-csd.sh`](./fix-dock-and-csd.sh) for the full script. The key step:
+
+```bash
+dconf write /org/gnome/shell/favorite-apps \
+  "['chrome-lapc506.desktop', 'chrome-dojocoding.desktop', 'chrome-altrupets.desktop', ...]"
+```
+
+`dconf write` is lower-level than `gsettings set` — it skips the schema validation layer and writes directly to the binary database file. In the common case this is a disadvantage (no type checking), but in the "GNOME Shell is racing with you" case it's an advantage because the write lands without an intermediate process that could be preempted.
+
+After the write:
+
+```bash
+# Verify both layers now agree
+gsettings get org.gnome.shell favorite-apps
+dconf read /org/gnome/shell/favorite-apps
+# Cycle the dock extension to force it to re-read
+gnome-extensions disable ubuntu-dock@ubuntu.com
+gnome-extensions enable ubuntu-dock@ubuntu.com
+```
+
+### Additional: preserve existing pins, don't replace wholesale
+
+The script merges the current dconf state with your additions. Without that, running `gsettings set [6 new apps]` replaces _all_ favorites, destroying any pins the user already had. The script's pattern:
+
+1. Read current dconf value
+2. Remove obsolete entries (`google-chrome.desktop`, `chromium_chromium.desktop` etc. that are replaced by your 6 custom launchers)
+3. Prepend the new launchers at position 0
+4. Keep everything else intact
+5. `dconf write` the merged list
+
+## Post-fix troubleshooting: Chrome window controls appear on the left (macOS-style)
+
+Under Wayland, Chrome switches from server-side decorations (where Mutter draws the window frame) to client-side decorations (CSD, where Chrome draws its own frame). Chrome's CSD has a different button layout than GTK's default — on this test machine, close/minimize/maximize ended up on the LEFT side of the window, mimicking macOS.
+
+### Fix: force system title bar in each Chrome profile
+
+Chrome's user preference "Use system title bar and borders" controls whether Chrome draws its own frame (CSD) or defers to the compositor (SSD). The preference lives in each profile's `Preferences` JSON file as `browser.custom_chrome_frame`:
+
+* `true` → Chrome draws CSD (buttons wherever Chrome wants)
+* `false` → Mutter draws SSD, respects `org.gnome.desktop.wm.preferences button-layout`
+
+For our `--user-data-dir` based launcher setup, each profile has its own `Preferences` at `~/.config/google-chrome-<slug>/Default/Preferences`. The GUI toggle at `chrome://settings/appearance` sets this, but we can script it across all profiles at once.
+
+See the Fix 2 block in [`fix-dock-and-csd.sh`](./fix-dock-and-csd.sh):
+
+```bash
+# (conceptually — see the script for the full version)
+for prefs in ~/.config/google-chrome-*/Default/Preferences; do
+    python3 -c "
+import json
+with open('$prefs') as f: d = json.load(f)
+d.setdefault('browser', {})['custom_chrome_frame'] = False
+with open('$prefs', 'w') as f: json.dump(d, f, separators=(',',':'))
+"
+done
+```
+
+**Important:** the Preferences file must be edited while Chrome is **not running** on that profile. Chrome holds the file open at runtime and will overwrite your edit on shutdown. The script `pkill`s any matching Chrome processes first.
+
+The change applies on the next launch of each profile — Chrome reads Preferences at startup. Relaunching gives you the standard Ubuntu title bar with buttons on the right.
+
 ## Known Constraints
 
 * **Driver version ≥ 470 required.** The same `61-gdm.rules` contains a branch that hard-disables Wayland for NVIDIA drivers below 470:
@@ -285,3 +363,4 @@ There is no clean prevention because the abrupt kill comes from `systemctl resta
 5. **When config-file hacking fails, let the app persist the choice itself.** GDM's gear ⚙ writes to AccountsService with the EXACT internal schema the autologin flow later consumes. Emulating that schema from outside is fragile; letting GDM's own UI save it is reliable — but only after the picker is functional, which requires everything else in this runbook.
 6. **A fix that works is rarely a single change.** The final config on the test machine ended up being: (a) new udev rule, (b) `PreferredDisplayServer=wayland` in custom.conf, (c) AccountsService `Session=ubuntu-wayland` with `XSession=` removed, (d) `/usr/share/xsessions/ubuntu.desktop` moved aside, (e) gdm3 restarted, (f) autologin re-enabled after manual session pick. Documenting only the last step ("pick Wayland from the gear") would erase the scaffolding that made it possible. Runbooks should capture the whole stack, even the layers that "seem redundant" in hindsight — they're not, they're the preconditions that made the last step viable.
 7. **"Silent exit 0" is the hardest failure mode to debug.** An app that crashes with a stacktrace, prints to stderr, or leaves a core dump gives you something to Google. An app that exits cleanly with status 0 and no output looks identical to "user clicked the wrong thing" or "system is frozen". The Electron singleton-lock pattern is a category of this: the app behaves as-designed from its own perspective (it refused to start because it thinks another instance is running), but from the user's perspective the app is "broken". **When an app doesn't respond to clicks, always check for lock/pid files in its config directory before assuming the binary itself is broken.**
+8. **When `gsettings get` and `dconf read` disagree on the same key, trust `dconf read`.** gsettings is a wrapper layer that adds schema validation and notification ordering — under normal conditions it's indistinguishable from dconf, but during session init or other high-write-rate moments the intermediate layers can report success for a write that was immediately clobbered before persisting. Always cross-check the two when debugging config that "should be set but the app isn't picking it up". If they diverge, use `dconf write` to bypass the layers and go straight to the binary database file.
