@@ -202,6 +202,55 @@ sudo udevadm control --reload-rules
 sudo sed -i 's|^AutomaticLoginEnable=False|AutomaticLoginEnable=True|' /etc/gdm3/custom.conf
 ```
 
+## Post-fix troubleshooting: Electron apps silently fail to launch
+
+After `systemctl restart gdm3`, you may find that some Electron-based snap apps (Slack, Discord, WhatsDesk, Claude Desktop, LM Studio, Zenflow, Obsidian, etc.) do not respond when clicked from the dock. Other apps (VS Code, Chrome, Files) launch normally. Running the failing app from the terminal produces no output and no visible process — the binary appears to exit silently.
+
+### Root cause: zombie singleton-lock files
+
+Electron's single-instance mechanism creates three artifacts when the app starts:
+
+```bash
+$HOME/snap/<app>/current/.config/<App>/SingletonLock    # symlink → hostname-PID
+$HOME/snap/<app>/current/.config/<App>/SingletonCookie  # symlink → token
+$HOME/snap/<app>/current/.config/<App>/SingletonSocket  # symlink → unix socket in /run/user/1000/
+```
+
+When the primary process exits cleanly, Electron removes these. When it dies abruptly — as every Electron app does when `gdm3` is restarted — the artifacts are left pointing to a dead PID and a socket that no longer listens. The next launch attempt:
+
+1. Sees the lock file exists.
+2. Tries to connect to the socket to forward its args to the (supposedly) running primary.
+3. Socket is gone / PID is dead → `ECONNREFUSED`.
+4. The Electron wrapper interprets this as "conflict with another instance" and **exits silently with status 0**, no stderr, no user-visible error.
+
+Result: the user clicks the launcher, nothing visible happens, no error to Google, no obvious place to check.
+
+Not every Electron app suffers from this. VS Code, for example, detects the dead PID and cleans the stale lock automatically. Slack / Discord / WhatsDesk / Claude Desktop / LM Studio / Zenflow trust the lock blindly and abort.
+
+### Fix: scan + clean zombie locks
+
+See [`clean-electron-zombie-locks.sh`](./clean-electron-zombie-locks.sh). The script:
+
+1. Walks common Electron config paths (`~/snap/*/current/.config/*/`, `~/.config/*/`, `~/.var/app/*/config/*/`).
+2. For each `SingletonLock` found, extracts the PID from the symlink target (format `hostname-PID`).
+3. Tests `/proc/$PID` existence. If dead → removes `SingletonLock` + `SingletonCookie` + `SingletonSocket`.
+4. Preserves locks whose PID is alive (those apps are legitimately running).
+
+On the test machine after the Wayland switch, 6 zombie locks were found + cleaned: discord, Slack, whatsdesk, Claude Desktop, LM Studio, zenflow-desktop. After cleanup, all six launched normally from the dock.
+
+```bash
+bash ./clean-electron-zombie-locks.sh
+```
+
+No sudo needed — all the files are under `~/`. The script is idempotent: re-running after everything is clean reports "0 zombie locks, N alive locks preserved".
+
+### Prevention
+
+There is no clean prevention because the abrupt kill comes from `systemctl restart gdm3`, which by design does not wait for user-space apps to cleanly exit. Options:
+
+1. **Before running `restart gdm3`**: close all Electron apps manually via their "File → Quit" menu. That triggers clean shutdown and releases the locks.
+2. **After any unexpected crash/OOM/gdm3-restart**: run `clean-electron-zombie-locks.sh` proactively before attempting to relaunch.
+
 ## Known Constraints
 
 * **Driver version ≥ 470 required.** The same `61-gdm.rules` contains a branch that hard-disables Wayland for NVIDIA drivers below 470:
@@ -235,3 +284,4 @@ sudo sed -i 's|^AutomaticLoginEnable=False|AutomaticLoginEnable=True|' /etc/gdm3
 4. **Session pickers dedupe by `Name=`.** If `/usr/share/xsessions/foo.desktop` and `/usr/share/wayland-sessions/foo.desktop` both have `Name=Foo`, the picker shows one entry, and which one executes depends on the display-server preference. Removing the X11 alias is a blunt but reliable way to force the Wayland version.
 5. **When config-file hacking fails, let the app persist the choice itself.** GDM's gear ⚙ writes to AccountsService with the EXACT internal schema the autologin flow later consumes. Emulating that schema from outside is fragile; letting GDM's own UI save it is reliable — but only after the picker is functional, which requires everything else in this runbook.
 6. **A fix that works is rarely a single change.** The final config on the test machine ended up being: (a) new udev rule, (b) `PreferredDisplayServer=wayland` in custom.conf, (c) AccountsService `Session=ubuntu-wayland` with `XSession=` removed, (d) `/usr/share/xsessions/ubuntu.desktop` moved aside, (e) gdm3 restarted, (f) autologin re-enabled after manual session pick. Documenting only the last step ("pick Wayland from the gear") would erase the scaffolding that made it possible. Runbooks should capture the whole stack, even the layers that "seem redundant" in hindsight — they're not, they're the preconditions that made the last step viable.
+7. **"Silent exit 0" is the hardest failure mode to debug.** An app that crashes with a stacktrace, prints to stderr, or leaves a core dump gives you something to Google. An app that exits cleanly with status 0 and no output looks identical to "user clicked the wrong thing" or "system is frozen". The Electron singleton-lock pattern is a category of this: the app behaves as-designed from its own perspective (it refused to start because it thinks another instance is running), but from the user's perspective the app is "broken". **When an app doesn't respond to clicks, always check for lock/pid files in its config directory before assuming the binary itself is broken.**
