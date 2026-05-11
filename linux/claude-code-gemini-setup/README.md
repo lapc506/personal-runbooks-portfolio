@@ -27,27 +27,26 @@ interceptamos las llamadas y las traducimos al formato de Gemini, permitiendo:
 uv tool install 'litellm[proxy,google]'
 ```
 
-### 2. Configurar archivos
+### 2. Symlinkear archivos desde el repo
+
+Todos los archivos viven **en el repo** y se referencian por symlink.
+Nada se copia — editar el repo actualiza todo automáticamente.
 
 ```bash
-# Crear directorio de config
-mkdir -p ~/.config/litellm-claude
+REPO="$PWD"  # o la ruta donde clonaste el repo
 
-# Copiar config
-cp config.yaml ~/.config/litellm-claude/
-
-# Copiar y editar .env
-cp .env.example ~/.config/litellm-claude/.env
-# Editar: poner GEMINI_API_KEY y LITELLM_MASTER_KEY
-
-# Copiar script wrapper
+# Script wrapper (para usar desde terminal)
 mkdir -p ~/.local/bin
-cp claude-code-vertex ~/.local/bin/
-chmod +x ~/.local/bin/claude-code-vertex
+ln -sf "$REPO/claude-code-vertex" ~/.local/bin/
 
-# (Opcional) Copiar desktop launcher
-cp claude-code-vertex.desktop ~/.local/share/applications/
+# Desktop launcher (para menú de aplicaciones)
+ln -sf "$REPO/claude-code-vertex.desktop" ~/.local/share/applications/
 update-desktop-database ~/.local/share/applications/
+
+# .env local (secrets — NUNCA commitear al repo)
+mkdir -p ~/.config/litellm-claude
+cp -n .env.example ~/.config/litellm-claude/.env
+# Editar: poner GEMINI_API_KEY y LITELLM_MASTER_KEY
 ```
 
 ### 3. Obtener API keys
@@ -86,6 +85,18 @@ El script detecta automáticamente qué credenciales tenés:
 | Vertex AI | `gcloud auth application-default-login` | Sí |
 
 Si tenés ambos configurados, te pregunta cuál usar al arrancar.
+
+### Cómo funciona el desktop launcher
+
+El `.desktop` file usa el field code `%k` (ruta del propio archivo `.desktop`)
+junto con `readlink -f` para resolver la ubicación real del repo aunque el
+`.desktop` esté instalado como symlink. Así no hay rutas absolutas hardcodeadas.
+
+```
+Exec=bash -c 'exec "$(dirname "$(readlink -f "$0")")/claude-code-vertex"' %k
+```
+
+El script hace lo mismo para encontrar `config.yaml` en el repo.
 
 ### Argumentos adicionales
 

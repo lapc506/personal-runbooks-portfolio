@@ -2,11 +2,12 @@
 # Claude Code con Gemini (Gemini API o Vertex AI) via liteLLM proxy
 set -euo pipefail
 
-CONFIG_DIR="$HOME/.config/litellm-claude"
-CONFIG="$CONFIG_DIR/config.yaml"
-ENV_FILE="$CONFIG_DIR/.env"
-LITELLM_LOG="$CONFIG_DIR/proxy.log"
-PIDFILE="$CONFIG_DIR/proxy.pid"
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+LOCAL_DIR="$HOME/.config/litellm-claude"
+CONFIG="${SCRIPT_DIR}/config.yaml"
+ENV_FILE="${LOCAL_DIR}/.env"
+LITELLM_LOG="${LOCAL_DIR}/proxy.log"
+PIDFILE="${LOCAL_DIR}/proxy.pid"
 
 # Source .env si existe (para GEMINI_API_KEY y LITELLM_MASTER_KEY)
 [ -f "$ENV_FILE" ] && set -a && . "$ENV_FILE" && set +a
