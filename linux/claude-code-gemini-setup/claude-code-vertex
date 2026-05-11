@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# Claude Code con Gemini (Gemini API o Vertex AI) via liteLLM proxy
+set -euo pipefail
+
+CONFIG_DIR="$HOME/.config/litellm-claude"
+CONFIG="$CONFIG_DIR/config.yaml"
+ENV_FILE="$CONFIG_DIR/.env"
+LITELLM_LOG="$CONFIG_DIR/proxy.log"
+PIDFILE="$CONFIG_DIR/proxy.pid"
+
+# Source .env si existe (para GEMINI_API_KEY y LITELLM_MASTER_KEY)
+[ -f "$ENV_FILE" ] && set -a && . "$ENV_FILE" && set +a
+
+export LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-sk-local-dojo-agent}"
+LITELLM_KEY="$LITELLM_MASTER_KEY"
+
+# --- Detección de backends ---
+has_gemini_api() { [ -n "${GEMINI_API_KEY:-}" ]; }
+has_vertex_ai() {
+  [ -n "${GOOGLE_APPLICATION_CREDENTIALS:-}" ] && return 0
+  [ -f "$HOME/.config/gcloud/application_default_credentials.json" ] && return 0
+  return 1
+}
+
+pick_model() {
+  local gemini_ok=false vertex_ok=false
+  has_gemini_api && gemini_ok=true
+  has_vertex_ai && vertex_ok=true
+
+  if ! $gemini_ok && ! $vertex_ok; then
+    echo "ERROR: No hay credenciales disponibles."
+    echo ""
+    echo "  Editá $ENV_FILE y agregá alguna de estas líneas:"
+    echo "    GEMINI_API_KEY=AIza...               (https://aistudio.google.com/apikey)"
+    echo "    # O activá Vertex AI:"
+    echo "    # gcloud auth application-default login"
+    exit 1
+  fi
+
+  if $gemini_ok && $vertex_ok; then
+    echo "Backends disponibles:"
+    echo "  1) Gemini API (API key)"
+    echo "  2) Vertex AI  (GCP credentials)"
+    echo ""
+    while true; do
+      read -rp "Elegí backend [1/2]: " choice
+      case "$choice" in
+        1) MODEL="gemini-pro"; echo "Usando Gemini API"; break;;
+        2) MODEL="vertex-gemini-pro"; echo "Usando Vertex AI"; break;;
+        *) echo "Opción inválida. Elegí 1 o 2.";;
+      esac
+    done
+  elif $gemini_ok; then
+    MODEL="gemini-pro"
+    echo "Usando Gemini API"
+  else
+    MODEL="vertex-gemini-pro"
+    echo "Usando Vertex AI (GCP)"
+  fi
+}
+
+# --- Cleanup del proxy al salir ---
+cleanup() {
+  if [ -f "$PIDFILE" ]; then
+    kill "$(cat "$PIDFILE")" 2>/dev/null || true
+    rm -f "$PIDFILE"
+  fi
+}
+trap cleanup EXIT INT TERM
+
+pick_model
+
+echo "Starting liteLLM proxy..."
+litellm --config "$CONFIG" --port 4000 > "$LITELLM_LOG" 2>&1 &
+echo $! > "$PIDFILE"
+
+for i in $(seq 1 30); do
+  if curl -s "http://0.0.0.0:4000/health/readiness" > /dev/null 2>&1; then
+    echo "liteLLM proxy ready on port 4000"
+    break
+  fi
+  if [ "$i" -eq 30 ]; then
+    echo "ERROR: liteLLM proxy failed to start"
+    cat "$LITELLM_LOG"
+    exit 1
+  fi
+  sleep 1
+done
+
+export ANTHROPIC_BASE_URL="http://0.0.0.0:4000"
+export ANTHROPIC_AUTH_TOKEN="$LITELLM_KEY"
+
+echo "Starting Claude Code with $MODEL..."
+echo ""
+claude --model "$MODEL" "$@"
