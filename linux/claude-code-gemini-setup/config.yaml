@@ -1,0 +1,18 @@
+model_list:
+  # Gemini API (API key) — usa generativelanguage.googleapis.com
+  # Cubierto por Google for Startups credits
+  - model_name: gemini-pro
+    litellm_params:
+      model: gemini/gemini-3.1-pro-preview
+      api_key: os.environ/GEMINI_API_KEY
+
+  # Vertex AI (GCP IAM) — usa aiplatform.googleapis.com
+  # Cubierto por Google for Startups credits
+  - model_name: vertex-gemini-pro
+    litellm_params:
+      model: vertex_ai/gemini-3.1-pro-preview
+      vertex_project: "dojo-agent-platform"
+      vertex_location: "us-central1"
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY

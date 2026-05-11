@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Claude Code (Gemini)
+Comment=Claude Code usando Gemini (API o Vertex AI) con Google for Startups credits
+Exec=/home/kvttvrsis/.local/bin/claude-code-vertex
+Icon=claude-desktop
+Type=Application
+Terminal=true
+Categories=Development;Utility;
+StartupWMClass=Claude-Code
