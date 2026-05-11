@@ -10,35 +10,32 @@ LITELLM_LOG="${LOCAL_DIR}/proxy.log"
 PIDFILE="${LOCAL_DIR}/proxy.pid"
 DEBUG_LOG="${LOCAL_DIR}/debug.log"
 
-# Redirigir debug a archivo (útil cuando la terminal se cierra)
-exec 3>&1  # guardar stdout original
-exec > >(tee -a "$DEBUG_LOG") 2>&1
-
-echo ""
-echo "============================================"
-echo "[DEBUG] $(date)"
-echo "============================================"
-echo "SCRIPT_DIR:        $SCRIPT_DIR"
-echo "CONFIG:            $CONFIG"
-echo "ENV_FILE:          $ENV_FILE"
-echo "LOCAL_DIR:         $LOCAL_DIR"
-echo "PIDFILE:           $PIDFILE"
-echo "CONFIG exists:     $( [ -f "$CONFIG" ] && echo YES || echo NO )"
-echo "ENV_FILE exists:   $( [ -f "$ENV_FILE" ] && echo YES || echo NO )"
-echo "ADC file exists:   $( [ -f "$HOME/.config/gcloud/application_default_credentials.json" ] && echo YES || echo NO )"
-echo "GEMINI_API_KEY:    ${GEMINI_API_KEY:+set (${#GEMINI_API_KEY} chars)}${GEMINI_API_KEY:-unset}"
-echo "GOOGLE_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-unset}"
-echo "LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:+set (${#LITELLM_MASTER_KEY} chars)}${LITELLM_MASTER_KEY:-unset}"
-echo "WHOAMI:            $(whoami)"
-echo "HOME:              $HOME"
-echo "PATH:              $PATH"
-echo "CLAUDE:            $(which claude 2>/dev/null || echo 'NOT FOUND')"
-echo "LITELLM:           $(which litellm 2>/dev/null || echo 'NOT FOUND')"
-echo "============================================"
-echo ""
-
 # Source .env si existe (para GEMINI_API_KEY y LITELLM_MASTER_KEY)
 [ -f "$ENV_FILE" ] && set -a && . "$ENV_FILE" && set +a
+
+# Debug dump (a archivo + pantalla)
+{
+  echo ""
+  echo "============================================"
+  echo "[DEBUG] $(date)"
+  echo "============================================"
+  echo "SCRIPT_DIR:        $SCRIPT_DIR"
+  echo "CONFIG:            $CONFIG"
+  echo "ENV_FILE:          $ENV_FILE"
+  echo "LOCAL_DIR:         $LOCAL_DIR"
+  echo "CONFIG exists:     $( [ -f "$CONFIG" ] && echo YES || echo NO )"
+  echo "ENV_FILE exists:   $( [ -f "$ENV_FILE" ] && echo YES || echo NO )"
+  echo "ADC file exists:   $( [ -f "$HOME/.config/gcloud/application_default_credentials.json" ] && echo YES || echo NO )"
+  echo "GEMINI_API_KEY:    ${GEMINI_API_KEY:+set (${#GEMINI_API_KEY} chars)}${GEMINI_API_KEY:-unset}"
+  echo "GOOGLE_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-unset}"
+  echo "LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:+set (${#LITELLM_MASTER_KEY} chars)}${LITELLM_MASTER_KEY:-unset}"
+  echo "WHOAMI:            $(whoami)"
+  echo "HOME:              $HOME"
+  echo "PATH:              $PATH"
+  echo "CLAUDE:            $(which claude 2>/dev/null || echo 'NOT FOUND')"
+  echo "LITELLM:           $(which litellm 2>/dev/null || echo 'NOT FOUND')"
+  echo "============================================"
+} | tee -a "$DEBUG_LOG"
 
 export LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-sk-local-dojo-agent}"
 LITELLM_KEY="$LITELLM_MASTER_KEY"
