@@ -1,5 +1,5 @@
 [Desktop Entry]
-Name=Claude Code (choose backend)
+Name=Claude Code
 Comment=Claude Code con Anthropic, Gemini, Vertex AI u OpenCode Go
 Exec=/home/kvttvrsis/.local/bin/claude-code-vertex-gui
 Icon=claude-desktop
