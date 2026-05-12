@@ -28,8 +28,8 @@ ln -sf "$REPO/claude-code-vertex-gui" ~/.local/bin/
 El `.desktop` se copia (NO symlink — GNOME cachea los symlinks):
 
 ```bash
-cp "$REPO/claude-code-gemini.desktop" ~/Escritorio/
-chmod +x ~/Escritorio/claude-code-gemini.desktop
+cp "$REPO/claude-code-multi-backend.desktop" ~/Escritorio/
+chmod +x ~/Escritorio/claude-code-multi-backend.desktop
 ```
 
 ### 3. Configurar API keys
@@ -93,6 +93,6 @@ Antes de arrancar Claude Code:
 |---|---|
 | `claude-code-vertex` | Script principal (selección, proxy, lanzamiento) |
 | `claude-code-vertex-gui` | Wrapper que lanza en Alacritty |
-| `claude-code-gemini.desktop` | Launcher del Escritorio |
+| `claude-code-multi-backend.desktop` | Launcher del Escritorio |
 | `config.yaml` | Configuración liteLLM |
 | `.env.example` | Template de secrets |
