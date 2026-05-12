@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Claude Code (Gemini)
 Comment=Claude Code usando Gemini (API o Vertex AI) con Google for Startups credits
-Exec=/home/kvttvrsis/.local/bin/claude-code-vertex
+Exec=bash -c 'exec "$(dirname "$(readlink -f "$0")")/claude-code-vertex"' %k
 Icon=claude-desktop
 Type=Application
 Terminal=true

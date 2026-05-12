@@ -1,0 +1,57 @@
+# systemd user unit — auto-clean zombie SingletonLock files on session start
+#
+# Place at: ~/.config/systemd/user/electron-zombie-lock-cleanup.service
+# Enable:   systemctl --user enable --now electron-zombie-lock-cleanup.service
+# Logs:     journalctl --user -u electron-zombie-lock-cleanup
+#
+# Pairs with clean-electron-zombie-locks.sh in this same runbook directory.
+# The script is idempotent and PID-safe — it only deletes locks whose target
+# PID is dead, so it is safe to run while live Electron apps are around.
+
+[Unit]
+Description=Clean zombie Electron SingletonLock files on user session start
+Documentation=file:///home/kvttvrsis/Documentos/GitHub/personal-runbooks-portfolio/linux/Ubuntu_GDM_Force_Wayland_on_NVIDIA/README.md
+
+# ─── DESIGN DECISION #1: WHEN TO RUN ─────────────────────────────────────
+# Option A — fires AFTER GNOME Shell + dock are up (later, but session-aware):
+#   After=graphical-session.target
+#   PartOf=graphical-session.target
+#
+# Option B — fires AS SOON AS systemd-user starts (earlier, no display yet):
+#   (no After=, no PartOf=)
+#
+# TODO(user): pick A or B and uncomment the right pair below
+# After=graphical-session.target
+# PartOf=graphical-session.target
+# ─────────────────────────────────────────────────────────────────────────
+
+[Service]
+Type=oneshot
+ExecStart=/home/kvttvrsis/Documentos/GitHub/personal-runbooks-portfolio/linux/Ubuntu_GDM_Force_Wayland_on_NVIDIA/clean-electron-zombie-locks.sh
+
+# ─── DESIGN DECISION #2: FAILURE BEHAVIOR ────────────────────────────────
+# Option A — silent: log to journal, never bother the user
+#   (no extra directives needed, this is the default)
+#
+# Option B — visible: on failure, send a desktop notification via notify-send
+#   ExecStartPost=/bin/sh -c 'systemctl --user is-failed %n >/dev/null && \
+#       notify-send -u critical "Zombie lock cleanup failed" \
+#       "Check: journalctl --user -u %n"'
+#
+# Option C — strict: any non-zero exit aborts the session-start chain
+#   (NOT recommended — a flaky cleanup script would block your login)
+#
+# TODO(user): pick A, B, or C
+# ─────────────────────────────────────────────────────────────────────────
+
+# Stay out of the way during normal session work
+Nice=10
+IOSchedulingClass=idle
+
+[Install]
+# DESIGN DECISION #1 cont: this WantedBy must match the After= above.
+#   If you picked Option A: WantedBy=graphical-session.target
+#   If you picked Option B: WantedBy=default.target
+# TODO(user): uncomment the matching one
+# WantedBy=graphical-session.target
+# WantedBy=default.target
