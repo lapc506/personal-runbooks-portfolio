@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Launcher que abre Claude Code en Alacritty en vez de la terminal por defecto
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+exec alacritty -e "$SCRIPT_DIR/claude-code-vertex"

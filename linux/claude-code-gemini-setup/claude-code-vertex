@@ -10,10 +10,10 @@ LITELLM_LOG="${LOCAL_DIR}/proxy.log"
 PIDFILE="${LOCAL_DIR}/proxy.pid"
 DEBUG_LOG="${LOCAL_DIR}/debug.log"
 
-# Source .env si existe (para GEMINI_API_KEY y LITELLM_MASTER_KEY)
+# Source .env si existe
 [ -f "$ENV_FILE" ] && set -a && . "$ENV_FILE" && set +a
 
-# Debug dump (a archivo + pantalla)
+# Debug dump (solo al archivo, no a pantalla)
 {
   echo ""
   echo "============================================"
@@ -26,19 +26,32 @@ DEBUG_LOG="${LOCAL_DIR}/debug.log"
   echo "CONFIG exists:     $( [ -f "$CONFIG" ] && echo YES || echo NO )"
   echo "ENV_FILE exists:   $( [ -f "$ENV_FILE" ] && echo YES || echo NO )"
   echo "ADC file exists:   $( [ -f "$HOME/.config/gcloud/application_default_credentials.json" ] && echo YES || echo NO )"
-  echo "GEMINI_API_KEY:    ${GEMINI_API_KEY:+set (${#GEMINI_API_KEY} chars)}${GEMINI_API_KEY:-unset}"
-  echo "GOOGLE_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-unset}"
+  echo "GEMINI_API_KEY:     ${GEMINI_API_KEY:+set (${#GEMINI_API_KEY} chars)}${GEMINI_API_KEY:-unset}"
+  echo "OPENCODE_GO_API_KEY: ${OPENCODE_GO_API_KEY:+set (${#OPENCODE_GO_API_KEY} chars)}${OPENCODE_GO_API_KEY:-unset}"
+  echo "GOOGLE_CREDENTIALS:  ${GOOGLE_APPLICATION_CREDENTIALS:-unset}"
   echo "LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:+set (${#LITELLM_MASTER_KEY} chars)}${LITELLM_MASTER_KEY:-unset}"
   echo "WHOAMI:            $(whoami)"
   echo "HOME:              $HOME"
-  echo "PATH:              $PATH"
   echo "CLAUDE:            $(which claude 2>/dev/null || echo 'NOT FOUND')"
   echo "LITELLM:           $(which litellm 2>/dev/null || echo 'NOT FOUND')"
   echo "============================================"
-} | tee -a "$DEBUG_LOG"
+} >> "$DEBUG_LOG"
 
 export LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-sk-local-dojo-agent}"
 LITELLM_KEY="$LITELLM_MASTER_KEY"
+USE_PROXY=true
+
+# --- Helper: guardar variable en .env ---
+save_to_env() {
+  local key="$1" val="$2"
+  if grep -q "^${key}=" "$ENV_FILE" 2>/dev/null; then
+    sed -i "s|^${key}=.*|${key}=${val}|" "$ENV_FILE"
+  else
+    echo "${key}=${val}" >> "$ENV_FILE"
+  fi
+  chmod 600 "$ENV_FILE"
+  export "${key}=${val}"
+}
 
 # --- Detección de backends ---
 has_gemini_api() { [ -n "${GEMINI_API_KEY:-}" ]; }
@@ -48,44 +61,237 @@ has_vertex_ai() {
   return 1
 }
 
+GO_MODELS=(
+  "minimax-m2.7|MiniMax M2.7"
+  "minimax-m2.5|MiniMax M2.5"
+)
+
+BACKENDS=(
+  "1|Anthropic directo (login propio)|anthropic-direct|none"
+  "2|Gemini API (API key)|gemini-pro|GEMINI_API_KEY"
+  "3|Vertex AI (GCP credentials)|vertex-gemini-pro|gcloud"
+  "4|OpenCode Go|opencode-go|OPENCODE_GO_API_KEY"
+)
+
 pick_model() {
-  local gemini_ok=false vertex_ok=false
-  has_gemini_api && gemini_ok=true
-  has_vertex_ai && vertex_ok=true
+  echo ""
+  echo "Backends disponibles:"
+  for be in "${BACKENDS[@]}"; do
+    local num="${be%%|*}"; local rest="${be#*|}"
+    local label="${rest%%|*}"; rest="${rest#*|}"
+    echo "  $num) $label"
+  done
+  echo ""
 
-  if ! $gemini_ok && ! $vertex_ok; then
-    echo "ERROR: No hay credenciales disponibles."
-    echo ""
-    echo "  Editá $ENV_FILE y agregá alguna de estas líneas:"
-    echo "    GEMINI_API_KEY=AIza...               (https://aistudio.google.com/apikey)"
-    echo "    # O activá Vertex AI:"
-    echo "    # gcloud auth application-default login"
-    exit 1
-  fi
+  while true; do
+    printf "Elegí backend [1-${#BACKENDS[@]}]: "
+    read -r choice
+    for be in "${BACKENDS[@]}"; do
+      local num="${be%%|*}"; local rest="${be#*|}"
+      local label="${rest%%|*}"; rest="${rest#*|}"
+      local model="${rest%%|*}"; local req="${rest#*|}"
+      [ "$choice" != "$num" ] && continue
 
-  if $gemini_ok && $vertex_ok; then
-    echo "Backends disponibles:"
-    echo "  1) Gemini API (API key)"
-    echo "  2) Vertex AI  (GCP credentials)"
-    echo ""
-    while true; do
-      read -rp "Elegí backend [1/2]: " choice
-      case "$choice" in
-        1) MODEL="gemini-pro"; echo "Usando Gemini API"; break;;
-        2) MODEL="vertex-gemini-pro"; echo "Usando Vertex AI"; break;;
-        *) echo "Opción inválida. Elegí 1 o 2.";;
-      esac
+      echo "Usando $label"
+
+      if [ "$req" = "none" ]; then
+        MODEL="$model"; USE_PROXY=false; return
+      fi
+
+      if [ "$req" = "gcloud" ]; then
+        if ! has_vertex_ai; then
+          echo "Vertex AI necesita credenciales de gcloud."
+          echo "Ejecutá en otra terminal:"
+          echo "  gcloud auth application-default login"
+          echo "O configurá GOOGLE_APPLICATION_CREDENTIALS en $ENV_FILE"
+          echo ""
+          read -rp "Presiona Enter cuando tengas las credenciales listas..."
+          if has_vertex_ai; then
+            MODEL="$model"; USE_PROXY=true; return
+          fi
+          echo "Todavía no hay credenciales. Cancelando."
+          break
+        fi
+        MODEL="$model"; USE_PROXY=true; return
+      fi
+
+      # Requiere API key — pedir si falta
+      if [ -z "${!req:-}" ]; then
+        echo "$req no está configurada."
+        read -rp "Ingresá tu API key para $label: " apikey
+        if [ -n "$apikey" ]; then
+          save_to_env "$req" "$apikey"
+          echo "$req guardada en $ENV_FILE"
+        else
+          echo "API key vacía. Cancelando."
+          break
+        fi
+      fi
+
+      if [ "$model" = "opencode-go" ]; then
+        USE_PROXY=false; pick_go_model; return
+      else
+        USE_PROXY=true; MODEL="$model"; return
+      fi
     done
-  elif $gemini_ok; then
-    MODEL="gemini-pro"
-    echo "Usando Gemini API"
-  else
-    MODEL="vertex-gemini-pro"
-    echo "Usando Vertex AI (GCP)"
-  fi
+  done
 }
 
-# --- Cleanup del proxy al salir ---
+pick_go_model() {
+  echo ""
+  echo "Modelos Go disponibles (Anthropic-compatibles):"
+  for j in "${!GO_MODELS[@]}"; do
+    local id="${GO_MODELS[$j]%%|*}"
+    local name="${GO_MODELS[$j]##*|}"
+    echo "  $((j+1))) $name ($id)"
+  done
+  echo ""
+  while true; do
+    read -rp "Elegí modelo [1-${#GO_MODELS[@]}]: " gsel
+    if [ "$gsel" -ge 1 ] && [ "$gsel" -le "${#GO_MODELS[@]}" ] 2>/dev/null; then
+      local idx=$((gsel - 1))
+      MODEL="${GO_MODELS[$idx]%%|*}"
+      echo "Usando $MODEL"
+      return
+    fi
+    echo "Opción inválida"
+  done
+}
+
+# --- Selección de sesión ---
+pick_session() {
+  local session_dir="$HOME/.claude/sessions"
+  local backup_dir="$HOME/.claude/sessions-backup"
+  mkdir -p "$backup_dir" "$session_dir"
+
+  local entries=()
+  local i=0
+
+  # Collect active + backup sessions (backups only if not already active)
+  while IFS= read -r f; do
+    entries+=("active:$f")
+  done < <(ls -t "$session_dir"/*.json 2>/dev/null)
+
+  while IFS= read -r f; do
+    local base=$(basename "$f")
+    if [ ! -f "$session_dir/$base" ]; then
+      entries+=("backup:$f")
+    fi
+  done < <(ls -t "$backup_dir"/*.json 2>/dev/null)
+
+  if [ ${#entries[@]} -eq 0 ]; then
+    echo "No hay sesiones guardadas."
+    read -rp "¿Ingresar ID manualmente? [s/N]: " manual
+    if [ "$manual" = "s" ] || [ "$manual" = "S" ]; then
+      read -rp "Session ID: " manual_id
+      if [ -n "$manual_id" ]; then
+        manual_id=$(resolve_session_id "$manual_id")
+        RESUME_FLAG="--resume $manual_id"
+        echo "Retomando sesión $manual_id"
+        return
+      fi
+    fi
+    RESUME_FLAG=""
+    echo "Nueva sesión"
+    return
+  fi
+
+  echo ""
+  echo "Sesiones existentes:"
+  echo "  0) Nueva sesión"
+  for entry in "${entries[@]}"; do
+    i=$((i + 1))
+    local kind="${entry%%:*}"
+    local f="${entry#*:}"
+    local sid=$(basename "$f" .json)
+    IFS='|' read -r name uuid cwd < <(python3 -c "
+import json, os
+d = json.load(open('$f'))
+cwd = d.get('cwd', '')
+h = os.environ.get('HOME', '')
+if cwd.startswith(h):
+    cwd = '~' + cwd[len(h):]
+print(f\"{d.get('name','(sin nombre)')}|{d.get('sessionId','N/A')}|{cwd}\")" 2>/dev/null)
+    local mtime=$(stat -c '%y' "$f" 2>/dev/null | cut -d. -f1)
+    local tag=""
+    [ "$kind" = "backup" ] && tag="  [respaldo]"
+    echo "  $i) $mtime  $sid  $uuid  $cwd  $name$tag"
+  done
+  echo "  m) Ingresar ID manualmente"
+  echo ""
+
+  while true; do
+    read -rp "Elegí sesión para retomar [0-${#entries[@]}]: " sel
+    if [ "$sel" = "0" ] || [ -z "$sel" ]; then
+      RESUME_FLAG=""
+      echo "Nueva sesión"
+      break
+    fi
+    if [ "$sel" = "m" ] || [ "$sel" = "M" ]; then
+      read -rp "Session ID: " manual_id
+      if [ -n "$manual_id" ]; then
+        manual_id=$(resolve_session_id "$manual_id")
+        RESUME_FLAG="--resume $manual_id"
+        echo "Retomando sesión $manual_id"
+      else
+        RESUME_FLAG=""
+        echo "Nueva sesión"
+      fi
+      break
+    fi
+    if [ "$sel" -ge 1 ] && [ "$sel" -le "${#entries[@]}" ] 2>/dev/null; then
+      local idx=$((sel - 1))
+      local entry="${entries[$idx]}"
+      local kind="${entry%%:*}"
+      local f="${entry#*:}"
+      local sid=$(basename "$f" .json)
+      local uuid=$(python3 -c "import json; print(json.load(open('$f')).get('sessionId',''))" 2>/dev/null)
+
+      # Backup antes de reanudar (por si crashea y Claude borra el .json)
+      if [ "$kind" = "active" ]; then
+        cp "$f" "$backup_dir/$sid.json" 2>/dev/null || true
+        echo "Sesión respaldada en $backup_dir/$sid.json"
+      fi
+
+      # cd al cwd original de la sesión
+      local orig_cwd=$(python3 -c "import json; print(json.load(open('$f')).get('cwd',''))" 2>/dev/null)
+      if [ -n "$orig_cwd" ] && [ -d "$orig_cwd" ]; then
+        cd "$orig_cwd"
+        echo "Cambiando a $orig_cwd"
+      fi
+
+      RESUME_FLAG="--resume $uuid"
+      echo "Retomando sesión $uuid"
+      break
+    fi
+    echo "Opción inválida"
+  done
+}
+
+# Resuelve UUID a short ID buscando en sesiones y backups
+resolve_session_id() {
+  local input="$1"
+  # Si no parece UUID (sin guiones), es short ID directo
+  if ! [[ "$input" =~ ^[0-9a-f-]{36}$ ]]; then
+    echo "$input"
+    return
+  fi
+  # Buscar UUID en active + backup jsons
+  for dir in "$HOME/.claude/sessions" "$HOME/.claude/sessions-backup"; do
+    for f in "$dir"/*.json; do
+      [ -f "$f" ] || continue
+      if python3 -c "import json; exit(0 if json.load(open('$f')).get('sessionId') == '$input' else 1)" 2>/dev/null; then
+        local found=$(basename "$f" .json)
+        echo "UUID resuelto a short ID: $found" >&2
+        echo "$found"
+        return
+      fi
+    done
+  done
+  echo "$input"
+}
+
+# --- Cleanup del proxy ---
 cleanup() {
   if [ -f "$PIDFILE" ]; then
     kill "$(cat "$PIDFILE")" 2>/dev/null || true
@@ -94,34 +300,96 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# Mata cualquier proceso usando el puerto 4000
+kill_port_4000() {
+  local pids
+  pids=$(lsof -ti :4000 2>/dev/null || true)
+  if [ -n "$pids" ]; then
+    echo "Puerto 4000 ocupado por PID(s) $pids — matando..."
+    kill $pids 2>/dev/null || true
+    sleep 1
+  fi
+}
+
+# --- Pipeline ---
 pick_model
 
-echo "Starting liteLLM proxy..."
-litellm --config "$CONFIG" --port 4000 > "$LITELLM_LOG" 2>&1 &
-echo $! > "$PIDFILE"
-
-for i in $(seq 1 30); do
-  if curl -s "http://0.0.0.0:4000/health/readiness" > /dev/null 2>&1; then
-    echo "liteLLM proxy ready on port 4000"
-    break
+echo ""
+read -rp "¿Retomar sesión existente? [s/N]: " resume_choice
+if [ "$resume_choice" = "s" ] || [ "$resume_choice" = "S" ]; then
+  pick_session
+else
+  RESUME_FLAG=""
+  echo "Nueva sesión"
+  cwd=$(pwd)
+  read -rp "¿Lanzar desde ${cwd}? [Y/n]: " ok
+  if [ "$ok" = "n" ] || [ "$ok" = "N" ]; then
+    read -rp "Directorio: " work_dir
+    work_dir="${work_dir/#\~/$HOME}"
+    while [ -n "$work_dir" ] && [ ! -d "$work_dir" ]; do
+      echo "No existe. Intenta de nuevo o Enter para cancelar."
+      read -rp "Directorio: " work_dir
+      work_dir="${work_dir/#\~/$HOME}"
+    done
+    if [ -d "$work_dir" ]; then
+      cd "$work_dir"
+    fi
   fi
-  if [ "$i" -eq 30 ]; then
-    echo "ERROR: liteLLM proxy failed to start"
-    cat "$LITELLM_LOG"
-    exit 1
-  fi
-  sleep 1
-done
+  echo "Directorio: $(pwd)"
+fi
 
-export ANTHROPIC_BASE_URL="http://0.0.0.0:4000"
-export ANTHROPIC_AUTH_TOKEN="$LITELLM_KEY"
+read -rp "¿Omitir permisos (dangerously-skip-permissions)? [s/N]: " skip_perm
+SKIP_FLAG=""
+if [ "$skip_perm" = "s" ] || [ "$skip_perm" = "S" ]; then
+  SKIP_FLAG="--dangerously-skip-permissions"
+  echo "Permisos omitidos"
+fi
 
-echo "Starting Claude Code with $MODEL..."
+if $USE_PROXY; then
+  kill_port_4000
+  echo ""
+  echo "Starting liteLLM proxy..."
+  litellm --config "$CONFIG" --port 4000 > "$LITELLM_LOG" 2>&1 &
+  echo $! > "$PIDFILE"
+
+  for i in $(seq 1 30); do
+    if curl -s "http://0.0.0.0:4000/health/readiness" > /dev/null 2>&1; then
+      echo "liteLLM proxy ready on port 4000"
+      break
+    fi
+    if [ "$i" -eq 30 ]; then
+      echo "ERROR: liteLLM proxy failed to start"
+      cat "$LITELLM_LOG"
+      exit 1
+    fi
+    sleep 1
+  done
+
+  export ANTHROPIC_BASE_URL="http://0.0.0.0:4000"
+  export ANTHROPIC_AUTH_TOKEN="$LITELLM_KEY"
+elif [ "$MODEL" = "opencode-go" ]; then
+  export ANTHROPIC_BASE_URL="https://opencode.ai/zen/go/v1"
+  export ANTHROPIC_AUTH_TOKEN="$OPENCODE_GO_API_KEY"
+  echo "Usando OpenCode Go ($MODEL)"
+else
+  echo ""
+  echo "Usando Anthropic directo (sin proxy)"
+fi
+
+echo ""
+echo "Starting Claude Code..."
+echo "  Model:      ${MODEL}"
+echo "  Via proxy:  ${USE_PROXY}"
+echo "  Resume:     ${RESUME_FLAG:-ninguna}"
+echo "  Skip perms: ${SKIP_FLAG:-no}"
 echo ""
 
-# Capturar el código de salida de claude
 CLAUDE_EXIT=0
-claude --model "$MODEL" "$@" || CLAUDE_EXIT=$?
+if [ "$MODEL" = "anthropic-direct" ]; then
+  claude $RESUME_FLAG $SKIP_FLAG "$@" || CLAUDE_EXIT=$?
+else
+  claude --model "$MODEL" $RESUME_FLAG $SKIP_FLAG "$@" || CLAUDE_EXIT=$?
+fi
 
 echo ""
 echo "============================================"

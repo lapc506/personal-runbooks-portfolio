@@ -1,125 +1,98 @@
-# Claude Code con Gemini 3.1 Pro via liteLLM
+# Claude Code Launcher — multi-backend
 
-Usar **Claude Code** (el agente CLI de Anthropic) con **Gemini 3.1 Pro Preview**
-de Google usando [liteLLM](https://litellm.ai) como proxy de traducción entre
-formatos de API.
-
-## Motivación
-
-Claude Code normalmente solo funciona con modelos de Anthropic. Con liteLLM
-interceptamos las llamadas y las traducimos al formato de Gemini, permitiendo:
-
-- Usar Gemini desde la interfaz y tooling de Claude Code.
-- Consumir **Google for Startups credits** (cubren tanto Gemini API como
-  Vertex AI).
+Lanzador de Claude Code con soporte para múltiples backends: Anthropic directo,
+Gemini API, Vertex AI y OpenCode Go.
 
 ## Requisitos
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) instalado.
-- Python 3.11+ con [`uv`](https://docs.astral.sh/uv/).
-- (Opcional) `gcloud` CLI si usás Vertex AI.
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) instalado
+- [Alacritty](https://alacritty.org/) instalado (`sudo snap install alacritty`)
+- Python 3.11+ con [`uv`](https://docs.astral.sh/uv/) (solo para Gemini/Vertex via liteLLM)
+- `gcloud` CLI (solo para Vertex AI)
 
 ## Instalación
 
-### 1. Instalar liteLLM
+### 1. Symlinks de los scripts
+
+Los scripts viven en el repo y se referencian por symlink:
 
 ```bash
-uv tool install 'litellm[proxy,google]'
-```
-
-### 2. Symlinkear archivos desde el repo
-
-Todos los archivos viven **en el repo** y se referencian por symlink.
-Nada se copia — editar el repo actualiza todo automáticamente.
-
-```bash
-REPO="$PWD"  # o la ruta donde clonaste el repo
-
-# Script wrapper (para usar desde terminal)
+REPO="$PWD"  # ruta del repo
 mkdir -p ~/.local/bin
 ln -sf "$REPO/claude-code-vertex" ~/.local/bin/
+ln -sf "$REPO/claude-code-vertex-gui" ~/.local/bin/
+```
 
-# Desktop launcher (para menú de aplicaciones)
-ln -sf "$REPO/claude-code-vertex.desktop" ~/.local/share/applications/
-update-desktop-database ~/.local/share/applications/
+### 2. Launcher del Escritorio
 
-# .env local (secrets — NUNCA commitear al repo)
+El `.desktop` se copia (NO symlink — GNOME cachea los symlinks):
+
+```bash
+cp "$REPO/claude-code-gemini.desktop" ~/Escritorio/
+chmod +x ~/Escritorio/claude-code-gemini.desktop
+```
+
+### 3. Configurar API keys
+
+Crear `~/.config/litellm-claude/.env`:
+
+```bash
 mkdir -p ~/.config/litellm-claude
 cp -n .env.example ~/.config/litellm-claude/.env
-# Editar: poner GEMINI_API_KEY y LITELLM_MASTER_KEY
 ```
 
-### 3. Obtener API keys
+O simplemente ejecutar el launcher — te pide las keys que falten y las guarda
+automáticamente.
 
-**Gemini API:** https://aistudio.google.com/apikey
+## Backends
 
-**Vertex AI:** `gcloud auth application-default login` (necesita permisos de
-Vertex AI en el proyecto GCP).
-
-Luego editar `~/.config/litellm-claude/.env`:
-
-```bash
-GEMINI_API_KEY=AIza...
-LITELLM_MASTER_KEY=sk-...
-```
-
-## Uso
-
-### Desde terminal
-
-```bash
-claude-code-vertex
-```
-
-### Desde el menú de aplicaciones
-
-Buscar "Claude Code (Gemini)" en el launcher (GNOME/KDE/etc).
-
-### Selección de backend
-
-El script detecta automáticamente qué credenciales tenés:
-
-| Backend | Detección | Créditos GfS |
+| # | Backend | Requiere |
 |---|---|---|
-| Gemini API | `GEMINI_API_KEY` en `.env` | Sí |
-| Vertex AI | `gcloud auth application-default-login` | Sí |
+| 1 | Anthropic directo | `claude login` (login propio de Claude) |
+| 2 | Gemini API | `GEMINI_API_KEY` en `.env` |
+| 3 | Vertex AI | `gcloud auth application-default login` |
+| 4 | OpenCode Go | `OPENCODE_GO_API_KEY` en `.env` |
 
-Si tenés ambos configurados, te pregunta cuál usar al arrancar.
+Cuando elegís un backend cuya key falta, el script te la pide y la guarda en
+`.env` automáticamente.
 
-### Cómo funciona el desktop launcher
+### OpenCode Go
 
-El `.desktop` file usa el field code `%k` (ruta del propio archivo `.desktop`)
-junto con `readlink -f` para resolver la ubicación real del repo aunque el
-`.desktop` esté instalado como symlink. Así no hay rutas absolutas hardcodeadas.
+Modelos Anthropic-compatibles disponibles:
+- MiniMax M2.7 (`minimax-m2.7`)
+- MiniMax M2.5 (`minimax-m2.5`)
 
-```
-Exec=bash -c 'exec "$(dirname "$(readlink -f "$0")")/claude-code-vertex"' %k
-```
+API key en https://opencode.ai/auth
 
-El script hace lo mismo para encontrar `config.yaml` en el repo.
+## Funcionalidades
 
-### Argumentos adicionales
-
-Se pueden pasar flags a Claude Code:
-
-```bash
-claude-code-vertex --print "Hola"
-```
+- **Selección de backend** al arrancar
+- **Resume de sesiones** con respaldo automático (`~/.claude/sessions-backup/`)
+- **Resolución UUID → short ID**: pegar UUID funciona
+- **Confirmación de directorio** antes de lanzar
+- **Proxy liteLLM** para Gemini/Vertex (se mata solo si hay puerto stale)
+- **Sin proxy** para Anthropic directo y OpenCode Go
 
 ## Arquitectura
 
 ```
-Claude Code  ──HTTP──>  liteLLM proxy  ──HTTP──>  Gemini API / Vertex AI
-(Anthropic                (:4000)                  (Google)
- Messages API)            traduce formatos
+Antes de arrancar Claude Code:
+
+  GUI wrapper (claude-code-vertex-gui)
+    └── alacritty -e claude-code-vertex
+          └── pick backend → set env vars
+                ├── Anthropic direct → claude (sin proxy)
+                ├── OpenCode Go     → claude + ANTHROPIC_BASE_URL
+                ├── Gemini API      → litellm + claude --model gemini-pro
+                └── Vertex AI       → litellm + claude --model vertex-gemini-pro
 ```
 
-liteLLM recibe requests en formato Anthropic Messages API, las traduce al
-formato de Gemini, las reenvía, y traduce la respuesta de vuelta.
+## Archivos
 
-## Referencias
-
-- [liteLLM — Vertex AI docs](https://docs.litellm.ai/docs/providers/vertex)
-- [liteLLM — Claude con modelos no-Anthropic](https://docs.litellm.ai/docs/tutorials/claude_non_anthropic_models)
-- [Google AI Studio](https://aistudio.google.com/apikey)
-- [Google for Startups — AI program](https://cloud.google.com/startup/ai)
+| Archivo | Propósito |
+|---|---|
+| `claude-code-vertex` | Script principal (selección, proxy, lanzamiento) |
+| `claude-code-vertex-gui` | Wrapper que lanza en Alacritty |
+| `claude-code-gemini.desktop` | Launcher del Escritorio |
+| `config.yaml` | Configuración liteLLM |
+| `.env.example` | Template de secrets |

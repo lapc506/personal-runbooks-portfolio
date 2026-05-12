@@ -1,8 +1,9 @@
 [Desktop Entry]
-Name=Claude Code (Gemini)
-Comment=Claude Code usando Gemini (API o Vertex AI) con Google for Startups credits
+Name=Claude Code (choose backend)
+Comment=Claude Code con Anthropic, Gemini, Vertex AI u OpenCode Go
 Exec=/home/kvttvrsis/.local/bin/claude-code-vertex-gui
 Icon=claude-desktop
+Path=/home/kvttvrsis/Documentos/GitHub/dojocoding/dojo-os
 Type=Application
 Terminal=false
 Categories=Development;Utility;
