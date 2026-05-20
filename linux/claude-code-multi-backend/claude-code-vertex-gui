@@ -3,4 +3,27 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+
+# PATH propagation: launches from the GNOME .desktop shortcut inherit PATH from
+# the Wayland/X11 session, NOT from ~/.bashrc. Ubuntu's default bashrc returns
+# early for non-interactive shells, so ~/.bun/bin, nvm node, etc. never load
+# and child processes spawned by `claude` (npx, bun, MCP stdio servers) hit
+# ENOENT. We rebuild PATH explicitly here, before alacritty execs the launcher.
+: "${NVM_DIR:=$HOME/.nvm}"
+NVM_NODE_BIN=""
+if [ -d "$NVM_DIR/versions/node" ]; then
+  nvm_default="$(cat "$NVM_DIR/alias/default" 2>/dev/null || true)"
+  [ -z "$nvm_default" ] && nvm_default="node"
+  candidate="$NVM_DIR/versions/node/$nvm_default/bin"
+  if [ -d "$candidate" ]; then
+    NVM_NODE_BIN="$candidate"
+  else
+    # Fallback: latest installed node version (lexicographic, good enough)
+    latest="$(ls -1 "$NVM_DIR/versions/node" 2>/dev/null | sort -V | tail -n1 || true)"
+    [ -n "$latest" ] && [ -d "$NVM_DIR/versions/node/$latest/bin" ] \
+      && NVM_NODE_BIN="$NVM_DIR/versions/node/$latest/bin"
+  fi
+fi
+export PATH="$HOME/.local/bin:$HOME/.bun/bin${NVM_NODE_BIN:+:$NVM_NODE_BIN}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
+
 exec alacritty -e "$SCRIPT_DIR/claude-code-vertex"

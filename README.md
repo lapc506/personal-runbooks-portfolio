@@ -31,7 +31,8 @@ _(Placeholder for future PowerShell runbooks.)_
 
 ### Cross-platform
 
-_(Placeholder for future tooling that applies to multiple OSes.)_
+- [`Multi_Cloud_Cost_Optimization_Audit`](./cross-platform/Multi_Cloud_Cost_Optimization_Audit) — CLI-only cost optimization audit for Azure, AWS, and GCP. Runs `az advisor`, `aws wellarchitected`/`aws ce`, and `gcloud recommender` sequentially, merging all output into a single Markdown report. Zero third-party tools, zero GUI.
+- [`Nvm_Shim_For_Non_Interactive_Subprocesses`](./cross-platform/Nvm_Shim_For_Non_Interactive_Subprocesses) — fix `spawn npx ENOENT` (and `node`/`npm`/`corepack` equivalents) in non-interactive subprocesses spawned by Claude Code MCP servers, VS Code extensions, `systemd --user`, cron, and any other host that doesn't source `~/.bashrc`. Root cause: nvm injects PATH only inside interactive shells, so the version-specific `~/.nvm/versions/node/vX/bin` is invisible to `execvp`-style spawns. Fix: a universal bash shim at `~/.local/bin/nvm-shim` that sources `nvm.sh --no-use`, runs `nvm use default --silent`, and `exec`s the real binary — symlinks at `~/.local/bin/{npx,node,npm,corepack}` all point to the shim and auto-resolve the current default version. Survives `nvm install <newer>` + `nvm alias default <newer>` with zero config edits anywhere. Rejects three common alternatives (version-pinned symlinks, per-host hardcoded `PATH`, `bash -ilc` wrapping) with reasons. Linux verified; macOS install path documented.
 
 ## Tier 2 — Toolkits
 

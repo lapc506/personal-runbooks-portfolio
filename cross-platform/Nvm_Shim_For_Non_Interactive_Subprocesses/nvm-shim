@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# nvm-shim — universal shim for nvm-managed node tooling.
+# Lets non-interactive subprocesses (Claude Code MCP, VS Code, systemd, cron, etc.)
+# find npx/node/npm/corepack without manually sourcing ~/.bashrc.
+# Always uses the version pointed to by `nvm alias default` — survives `nvm install <newer>`.
+#
+# Install:
+#   - This file lives at ~/.local/bin/nvm-shim
+#   - Symlink it to ~/.local/bin/{npx,node,npm,corepack} (or any nvm-managed bin)
+
+set -u
+
+CMD="$(basename "$0")"
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+
+# Load nvm without auto-using a version (faster), then explicitly use default.
+if [ ! -s "$NVM_DIR/nvm.sh" ]; then
+  echo "[nvm-shim] FATAL: nvm not found at $NVM_DIR" >&2
+  exit 127
+fi
+
+# shellcheck source=/dev/null
+. "$NVM_DIR/nvm.sh" --no-use >/dev/null 2>&1
+nvm use default --silent >/dev/null 2>&1 || {
+  echo "[nvm-shim] FATAL: \`nvm use default\` failed. Run \`nvm alias default <version>\` once to set." >&2
+  exit 127
+}
+
+# Resolve real binary location (now ahead in PATH after nvm use).
+REAL="$(command -v "$CMD" 2>/dev/null)"
+
+# Infinite-loop guard: if PATH still resolves to this shim, abort.
+if [ -z "$REAL" ] || [ "$REAL" = "$0" ] || [ "$REAL" -ef "$0" ]; then
+  echo "[nvm-shim] FATAL: cannot resolve real $CMD after nvm use (resolved=$REAL self=$0)" >&2
+  exit 127
+fi
+
+exec "$REAL" "$@"

@@ -87,6 +87,39 @@ Antes de arrancar Claude Code:
                 └── Vertex AI       → litellm + claude --model vertex-gemini-pro
 ```
 
+## PATH propagation (gotcha importante)
+
+Cuando el launcher arranca desde el `.desktop` del Escritorio, la cadena de
+procesos es:
+
+```
+.desktop → bash (no interactivo) → alacritty -e → claude-code-vertex → claude
+```
+
+El PATH lo hereda de la sesión Wayland/X11, **no** de `~/.bashrc`. El bashrc
+por defecto de Ubuntu/Debian tiene este guard al inicio:
+
+```bash
+case $- in
+    *i*) ;;
+      *) return;;
+esac
+```
+
+Para shells no interactivos hace `return` temprano, así que los exports de
+abajo (`~/.bun/bin`, `nvm`, etc.) **nunca se cargan**. Resultado: cuando
+`claude` levanta sus subprocesos (MCP stdio servers via `npx`/`bun`), fallan
+con `ENOENT` porque esas rutas no están en PATH.
+
+Por eso `claude-code-vertex-gui` exporta PATH explícitamente antes de invocar
+`alacritty -e`. Incluye `~/.local/bin`, `~/.bun/bin`, el node activo de nvm
+(resuelto desde `$NVM_DIR/alias/default`, con fallback a la última versión
+instalada) y la system path estándar. Cualquier herramienta lanzada por esta
+misma vía hereda el PATH correcto.
+
+Si agregás otra ruta a tus tools de usuario (por ejemplo `~/.cargo/bin`),
+sumala al `export PATH=...` del wrapper.
+
 ## Archivos
 
 | Archivo | Propósito |
