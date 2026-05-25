@@ -10,6 +10,31 @@ LITELLM_LOG="${LOCAL_DIR}/proxy.log"
 PIDFILE="${LOCAL_DIR}/proxy.pid"
 DEBUG_LOG="${LOCAL_DIR}/debug.log"
 
+# PATH propagation: when launched via the GNOME .desktop shortcut, the PATH
+# exported by claude-code-vertex-gui does NOT survive `exec alacritty -e` — the
+# inner process inherits the bare session PATH, so gcloud / bun / nvm-node go
+# missing for `claude` and every child it spawns (MCP stdio servers, npx, and
+# Bash tool calls). Rebuild PATH HERE, in the script that actually execs
+# `claude`, so the fix holds no matter how we were launched (GUI or direct).
+: "${NVM_DIR:=$HOME/.nvm}"
+NVM_NODE_BIN=""
+if [ -d "$NVM_DIR/versions/node" ]; then
+  nvm_default="$(cat "$NVM_DIR/alias/default" 2>/dev/null || true)"
+  [ -z "$nvm_default" ] && nvm_default="node"
+  candidate="$NVM_DIR/versions/node/$nvm_default/bin"
+  if [ -d "$candidate" ]; then
+    NVM_NODE_BIN="$candidate"
+  else
+    # Fallback: latest installed node version (version sort, good enough)
+    latest="$(ls -1 "$NVM_DIR/versions/node" 2>/dev/null | sort -V | tail -n1 || true)"
+    [ -n "$latest" ] && [ -d "$NVM_DIR/versions/node/$latest/bin" ] \
+      && NVM_NODE_BIN="$NVM_DIR/versions/node/$latest/bin"
+  fi
+fi
+# Prepend the dirs that GUI launches drop, then keep whatever PATH we inherited
+# (system dirs + any plugin bins). Duplicate entries are harmless.
+export PATH="$HOME/.local/bin:$HOME/.bun/bin${NVM_NODE_BIN:+:$NVM_NODE_BIN}:$HOME/google-cloud-sdk/bin:${PATH}"
+
 # Source .env si existe
 [ -f "$ENV_FILE" ] && set -a && . "$ENV_FILE" && set +a
 
@@ -26,10 +51,12 @@ DEBUG_LOG="${LOCAL_DIR}/debug.log"
   echo "CONFIG exists:     $( [ -f "$CONFIG" ] && echo YES || echo NO )"
   echo "ENV_FILE exists:   $( [ -f "$ENV_FILE" ] && echo YES || echo NO )"
   echo "ADC file exists:   $( [ -f "$HOME/.config/gcloud/application_default_credentials.json" ] && echo YES || echo NO )"
-  echo "GEMINI_API_KEY:     ${GEMINI_API_KEY:+set (${#GEMINI_API_KEY} chars)}${GEMINI_API_KEY:-unset}"
-  echo "OPENCODE_GO_API_KEY: ${OPENCODE_GO_API_KEY:+set (${#OPENCODE_GO_API_KEY} chars)}${OPENCODE_GO_API_KEY:-unset}"
+  # Masked: report only presence + length, NEVER the secret value (the previous
+  # ${VAR:-unset} fallback printed the real key to debug.log when VAR was set).
+  echo "GEMINI_API_KEY:     $( [ -n "${GEMINI_API_KEY:-}" ] && echo "set (${#GEMINI_API_KEY} chars)" || echo unset )"
+  echo "OPENCODE_GO_API_KEY: $( [ -n "${OPENCODE_GO_API_KEY:-}" ] && echo "set (${#OPENCODE_GO_API_KEY} chars)" || echo unset )"
   echo "GOOGLE_CREDENTIALS:  ${GOOGLE_APPLICATION_CREDENTIALS:-unset}"
-  echo "LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:+set (${#LITELLM_MASTER_KEY} chars)}${LITELLM_MASTER_KEY:-unset}"
+  echo "LITELLM_MASTER_KEY: $( [ -n "${LITELLM_MASTER_KEY:-}" ] && echo "set (${#LITELLM_MASTER_KEY} chars)" || echo unset )"
   echo "WHOAMI:            $(whoami)"
   echo "HOME:              $HOME"
   echo "CLAUDE:            $(which claude 2>/dev/null || echo 'NOT FOUND')"
