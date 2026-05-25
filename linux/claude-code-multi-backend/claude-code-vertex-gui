@@ -24,6 +24,6 @@ if [ -d "$NVM_DIR/versions/node" ]; then
       && NVM_NODE_BIN="$NVM_DIR/versions/node/$latest/bin"
   fi
 fi
-export PATH="$HOME/.local/bin:$HOME/.bun/bin${NVM_NODE_BIN:+:$NVM_NODE_BIN}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
+export PATH="$HOME/.local/bin:$HOME/.bun/bin${NVM_NODE_BIN:+:$NVM_NODE_BIN}:$HOME/google-cloud-sdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
 
 exec alacritty -e "$SCRIPT_DIR/claude-code-vertex"
