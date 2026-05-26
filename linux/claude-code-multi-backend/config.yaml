@@ -6,6 +6,12 @@ model_list:
       model: gemini/gemini-3.1-pro-preview
       api_key: os.environ/GEMINI_API_KEY
 
+  # Gemini 3.5 Flash (API key) — cheap/fast model used by gemini-code-review.sh
+  - model_name: gemini-flash
+    litellm_params:
+      model: gemini/gemini-3.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+
   # Vertex AI (GCP IAM) — usa aiplatform.googleapis.com
   # Cubierto por Google for Startups credits
   - model_name: vertex-gemini-pro
