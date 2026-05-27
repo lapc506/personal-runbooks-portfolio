@@ -50,6 +50,18 @@ An **Xid** is the NVIDIA kernel module reporting a GPU exception to the host. Pe
 
 It is a **logical** fault (the command stream the GPU is asked to execute wedges), **not** a thermal/physical one.
 
+#### Reading the `CMDre` register dump
+
+```
+NVRM: Xid (PCI:0000:01:00): 56, CMDre 00000000 00002c88 000100bc 00000007 00000000
+                            ^^^^^^^^^^^  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                            PCI B:D.F    engine/channel + method words (NVIDIA-internal)
+```
+
+- `PCI:0000:01:00` — the **discrete** GPU (`01:00.0`), never the Intel iGPU (`00:02.0`). The fault is unambiguously on the NVIDIA card.
+- `56` — the Xid code.
+- `CMDre …` — a host/command-engine readback. The middle words (`00002c88` / `00002c8c`) are the method/offset the engine choked on; across both crashes they differ by only one increment, i.e. **the same command path wedged both times**. The exact decode is NVIDIA-internal and not publicly documented, but the stability of the signature is what matters: it is reproducible, not random corruption.
+
 ### Why it freezes the whole desktop (the configuration that turns a GPU fault into a system freeze)
 
 Ubuntu PRIME is in **`nvidia`** mode on this machine:
@@ -114,21 +126,27 @@ journalctl -b -k -g 'Xid'                            # ideally empty under load
 
 ### Experiment 2 — disable GSP firmware (`NVreg_EnableGpuFirmware=0`) — only if Experiment 1 fails
 
-**Hypothesis:** the Xid originates in the GSP (GPU System Processor) firmware path that the 5xx drivers offload GPU management to; disabling it routes management back through the in-driver legacy path.
+**What the GSP is:** GPUs from Turing onward ship a **GPU System Processor** — a small RISC-V core on the card. Since the 5xx driver branch, NVIDIA offloads a large part of GPU management (clock/power control, scheduling, RPC) to **firmware running on that GSP** instead of the host kernel driver. A whole class of Xid hangs on recent drivers traces to **GSP RPC timeouts/errors**, which is why disabling the GSP path is a known mitigation.
+
+**Hypothesis:** the Xid 56 originates in the GSP firmware path; routing GPU management back through the in-driver legacy path avoids the wedge.
+
+**Method — kernel cmdline, not `modprobe.d`.** This is deliberate. The sibling runbook [`Ubuntu_NVIDIA_Wayland_Flip_Event_Timeout`](../Ubuntu_NVIDIA_Wayland_Flip_Event_Timeout) proved on this exact machine that `options nvidia …` drop-ins in `/etc/modprobe.d` are read **too late** — Ubuntu bakes `nvidia.ko` into the initramfs and loads it before the real root (and thus `/etc/modprobe.d`) is available, so the module comes up with **defaults**. A module parameter placed on the kernel command line as `nvidia.NVreg_EnableGpuFirmware=0` binds at load time regardless of who loads it. The script uses the cmdline method and rebuilds both GRUB and initramfs:
 
 ```bash
-./experiment-2-disable-gsp-firmware.sh   # writes modprobe drop-in + rebuilds initramfs (needs sudo); does NOT reboot
-# then reboot
+sudo bash experiment-2-disable-gsp-firmware.sh          # apply (idempotent); does NOT reboot
+# reboot, then:
+bash experiment-2-disable-gsp-firmware.sh verify        # did it actually take? (no root needed)
 ```
 
-**⚠ Ada caveat:** on Ada-generation GPUs (RTX 40-series, this 4050) GSP firmware is effectively mandatory; the driver may **ignore** `NVreg_EnableGpuFirmware=0` and keep GSP on. **You must verify it actually took effect:**
+**⚠ Ada caveat (why this is Experiment 2, not 1):** on Ada-generation GPUs (RTX 40-series, this 4050) GSP firmware is effectively **mandatory**; the driver may **ignore** the token and keep GSP on. You must verify:
+
 ```bash
 nvidia-smi -q | grep -i 'GSP Firmware'
-# Disabled successfully → "GSP Firmware Version : N/A"
-# Still shows a version (e.g. 580.126.09) → the toggle was ignored; revert, this lever does not apply
+#   GSP Firmware Version : N/A          → disabled, took effect → observe Xid 56 under load
+#   GSP Firmware Version : 580.126.09   → IGNORED on this Ada GPU → this lever does not apply, revert
 ```
 
-**Rollback:** `sudo rm /etc/modprobe.d/zz-disable-gsp.conf && sudo update-initramfs -u` + reboot.
+**Rollback:** `sudo bash experiment-2-disable-gsp-firmware.sh revert` (removes the cmdline token, regenerates GRUB+initramfs) + reboot.
 
 ## Diagnose whether this runbook applies to your machine
 
@@ -145,3 +163,34 @@ Read-only. Scans recent boots for `Xid`, rules thermal in/out, and reports PRIME
 | 2026-05-26 | baseline | — | PRIME=`nvidia`, GSP=on, modeset cmdline fix present, gnome-shell on dGPU, 2 Xid 56 over 2 sessions |
 | _pending_ | 1 — prime on-demand | _awaiting reboot_ | _observe_ |
 | _pending_ | 2 — disable GSP | not started | _only if #1 fails_ |
+
+_Update this table as each experiment is applied and observed. "Result" should record how many days of normal heavy load passed with zero `Xid 56` — the freeze only appears in long sessions, so a clean afternoon proves nothing._
+
+## Decision tree
+
+```
+Freeze + Xid 56 on dGPU confirmed (run ./diagnose-nvidia-xid-freezes.sh)
+│
+├─ Experiment 1: prime-select on-demand → reboot → use normally for days
+│   ├─ no more Xid 56 / no freeze ........... ✅ DONE. Desktop now on iGPU.
+│   └─ Xid 56 still appears .................. ↓ (compositor was a symptom amplifier,
+│                                                  not the source — go deeper)
+│
+├─ Experiment 2: nvidia.NVreg_EnableGpuFirmware=0 → reboot → verify
+│   ├─ verify shows GSP "N/A" → use for days
+│   │   ├─ no more Xid 56 ................... ✅ DONE. GSP path was the trigger.
+│   │   └─ Xid 56 still appears ............. ↓ revert, escalate
+│   └─ verify shows GSP still ON (Ada ignored it) → revert → escalate
+│
+└─ Escalation (both failed): try a different driver branch (e.g. 570/550 or a
+    newer 5xx point release), capture nvidia-bug-report.sh during a freeze window,
+    and open an NVIDIA forum thread with the Xid 56 signature + bug report.
+```
+
+## References
+
+- [NVIDIA Xid Errors documentation](https://docs.nvidia.com/deploy/xid-errors/)
+- [Forum: Frequent display freezing and Xid 56 errors (RTX 40-series, 5xx driver)](https://forums.developer.nvidia.com/t/frequent-display-freezing-and-xid-56-errors-on-arch-linux-endeavouros-575-64-and-4070-ti/337261)
+- [Forum: Xid errors after resuming from suspend](https://forums.developer.nvidia.com/t/xid-errors-after-resuming-from-suspend/71045)
+- Sibling runbook: [`Ubuntu_NVIDIA_Wayland_Flip_Event_Timeout`](../Ubuntu_NVIDIA_Wayland_Flip_Event_Timeout) — modprobe.d-vs-cmdline timing lesson reused here
+- Session recovery after these freezes: [`claude-code-multi-backend`](../claude-code-multi-backend)
