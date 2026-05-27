@@ -68,10 +68,52 @@ API key en https://opencode.ai/auth
 
 - **Selección de backend** al arrancar
 - **Resume de sesiones** con respaldo automático (`~/.claude/sessions-backup/`)
+- **Recuperación de sesiones huérfanas**: lista también las sesiones reales que
+  quedaron sin heartbeat tras un crash (ver abajo)
+- **Respaldo al iniciar** vía hook `SessionStart` (no sólo al retomar)
 - **Resolución UUID → short ID**: pegar UUID funciona
 - **Confirmación de directorio** antes de lanzar
 - **Proxy liteLLM** para Gemini/Vertex (se mata solo si hay puerto stale)
 - **Sin proxy** para Anthropic directo y OpenCode Go
+
+## Recuperación de sesiones (cómo funciona)
+
+El selector arma la lista desde **tres fuentes**, deduplicadas por UUID:
+
+| Fuente | Origen | Tag |
+|---|---|---|
+| Activas | `~/.claude/sessions/<pid>.json` (heartbeat de procesos vivos) | — |
+| Respaldos | `~/.claude/sessions-backup/<uuid>.json` | `[respaldo]` |
+| Huérfanas | `~/.claude/projects/<proj>/<uuid>.jsonl` (transcripts reales) | `[huérfana]` |
+
+El heartbeat `<pid>.json` lo escribe Claude Code y **sólo existe mientras el
+proceso vive**; al salir limpio lo borra, y al arrancar tras un reinicio purga
+los que quedaron huérfanos. Por eso una sesión que muere en un **freeze de GPU /
+corte de energía** desaparecía del menú aunque su transcript siguiera intacto en
+disco.
+
+Dos arreglos cierran el hueco:
+
+1. **Fuente "huérfana"** — el selector escanea los transcripts reales en
+   `~/.claude/projects` (últimos `ORPHAN_MAX_AGE_DAYS` días, tope `ORPHAN_LIMIT`)
+   y muestra cualquiera sin heartbeat vivo ni respaldo. El transcript es la
+   fuente de verdad, así que la sesión siempre es recuperable.
+2. **Hook `SessionStart`** (`hooks/session-backup.sh`) — respalda la metadata de
+   cada sesión **apenas arranca**, no sólo cuando la retomás por el menú. Así el
+   respaldo sobrevive a un crash que ocurra antes de retomarla.
+
+Variables de entorno opcionales: `ORPHAN_MAX_AGE_DAYS` (default 14),
+`ORPHAN_LIMIT` (default 25).
+
+### Instalar el hook de respaldo
+
+```bash
+./hooks/install-session-backup-hook.sh
+```
+
+Idempotente: registra `session-backup.sh` como hook `SessionStart` en
+`~/.claude/settings.json` sin duplicar ni tocar el resto de la config (deja un
+`.bak` con timestamp por las dudas).
 
 ## Arquitectura
 
@@ -129,3 +171,5 @@ sumala al `export PATH=...` del wrapper.
 | `claude-code-multi-backend.desktop` | Launcher del Escritorio |
 | `config.yaml` | Configuración liteLLM |
 | `.env.example` | Template de secrets |
+| `hooks/session-backup.sh` | Hook `SessionStart`: respalda metadata al iniciar |
+| `hooks/install-session-backup-hook.sh` | Registra el hook en `settings.json` (idempotente) |

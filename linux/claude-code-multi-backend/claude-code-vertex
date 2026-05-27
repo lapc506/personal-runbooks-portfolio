@@ -186,25 +186,149 @@ pick_go_model() {
 }
 
 # --- Selección de sesión ---
+
+# Ventana y tope para listar transcripts huérfanos (sesiones reales sin
+# heartbeat vivo ni respaldo). Mantiene el menú acotado sin perder recuperación.
+ORPHAN_MAX_AGE_DAYS="${ORPHAN_MAX_AGE_DAYS:-14}"
+ORPHAN_LIMIT="${ORPHAN_LIMIT:-25}"
+
+# _session_meta FILE  → imprime  label|uuid|cwd_display|cwd_raw
+# Acepta tanto un heartbeat .json (sessions/ o sessions-backup/) como un
+# transcript real .jsonl (~/.claude/projects/<proj>/<uuid>.jsonl). El FILE se
+# pasa como argv (no se interpola en el source) para no romper con rutas raras.
+_session_meta() {
+  python3 - "$1" <<'PY'
+import json, os, sys
+
+path = sys.argv[1]
+home = os.environ.get('HOME', '')
+
+def disp(c):
+    return ('~' + c[len(home):]) if c and c.startswith(home) else c
+
+name = uuid = cwd = ''
+
+if path.endswith('.jsonl'):
+    # Transcript real: barrer líneas hasta tener lo necesario, luego cortar.
+    first = ''
+    try:
+        with open(path, encoding='utf-8', errors='replace') as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    o = json.loads(line)
+                except Exception:
+                    continue
+                if not uuid and o.get('sessionId'):
+                    uuid = o['sessionId']
+                if not cwd and o.get('cwd'):
+                    cwd = o['cwd']
+                if not name and o.get('type') == 'summary':
+                    name = (o.get('summary') or '').strip()
+                if not first and o.get('type') == 'user':
+                    c = (o.get('message') or {}).get('content')
+                    if isinstance(c, str):
+                        t = c
+                    elif isinstance(c, list):
+                        t = next((b.get('text', '') for b in c
+                                  if isinstance(b, dict) and b.get('type') == 'text'), '')
+                    else:
+                        t = ''
+                    t = t.strip()
+                    if t and not t.startswith('<') and 'tool_result' not in t:
+                        first = t
+                if uuid and cwd and (name or first):
+                    break
+    except Exception:
+        pass
+    if not uuid:
+        uuid = os.path.splitext(os.path.basename(path))[0]
+    label = name or first or '(sin nombre)'
+else:
+    # Heartbeat de proceso (vivo o respaldo).
+    try:
+        d = json.load(open(path))
+    except Exception:
+        d = {}
+    uuid = d.get('sessionId', '')
+    cwd = d.get('cwd', '')
+    label = d.get('name') or '(sin nombre)'
+
+label = ' '.join(label.split())[:60]
+print(f"{label}|{uuid}|{disp(cwd)}|{cwd}")
+PY
+}
+
+# Lee el sessionId de un heartbeat .json (active/backup).
+_heartbeat_uuid() {
+  python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('sessionId',''))" "$1" 2>/dev/null
+}
+
+# Respalda metadata de una sesión a sessions-backup/<uuid>.json para que
+# reaparezca aunque el proceso muera sin limpieza (freeze/reinicio).
+_backup_session() {
+  local kind="$1" f="$2" uuid="$3" cwd="$4" name="$5"
+  local backup_dir="$HOME/.claude/sessions-backup"
+  [ -n "$uuid" ] || return 0
+  if [ "$kind" = "active" ] || [ "$kind" = "backup" ]; then
+    cp "$f" "$backup_dir/$uuid.json" 2>/dev/null && return 0
+  fi
+  # Huérfana (o fallback): sintetizar metadata mínima desde el transcript.
+  python3 - "$backup_dir/$uuid.json" "$uuid" "$cwd" "$name" <<'PY' 2>/dev/null || true
+import json, sys, time
+dest, uuid, cwd, name = sys.argv[1:5]
+rec = {"sessionId": uuid, "cwd": cwd, "kind": "interactive",
+       "status": "orphan-backup", "updatedAt": int(time.time() * 1000)}
+if name and name != '(sin nombre)':
+    rec["name"] = name
+json.dump(rec, open(dest, "w"))
+PY
+}
+
 pick_session() {
   local session_dir="$HOME/.claude/sessions"
   local backup_dir="$HOME/.claude/sessions-backup"
+  local projects_dir="$HOME/.claude/projects"
   mkdir -p "$backup_dir" "$session_dir"
 
   local entries=()
+  local seen_uuids=" "   # set (con padding de espacios) de UUIDs ya listados
   local i=0
 
-  # Collect active + backup sessions (backups only if not already active)
+  # 1) Sesiones activas: heartbeats de procesos claude vivos.
   while IFS= read -r f; do
+    [ -f "$f" ] || continue
     entries+=("active:$f")
+    local u; u=$(_heartbeat_uuid "$f")
+    [ -n "$u" ] && seen_uuids+="$u "
   done < <(ls -t "$session_dir"/*.json 2>/dev/null)
 
+  # 2) Respaldos: solo si su UUID no está ya activo.
   while IFS= read -r f; do
-    local base=$(basename "$f")
-    if [ ! -f "$session_dir/$base" ]; then
-      entries+=("backup:$f")
-    fi
+    [ -f "$f" ] || continue
+    local u; u=$(_heartbeat_uuid "$f")
+    case "$seen_uuids" in *" $u "*) continue ;; esac
+    entries+=("backup:$f")
+    [ -n "$u" ] && seen_uuids+="$u "
   done < <(ls -t "$backup_dir"/*.json 2>/dev/null)
+
+  # 3) Transcripts huérfanos: sesiones reales en ~/.claude/projects sin
+  #    heartbeat vivo ni respaldo. Cierra el hueco donde un freeze/reinicio
+  #    mata la sesión antes de respaldarla (ver README "Recuperación").
+  #    -maxdepth 2 lista projects/<proj>/<uuid>.jsonl y excluye los
+  #    agent-*.jsonl de subagentes (que viven más profundo).
+  while IFS= read -r f; do
+    [ -f "$f" ] || continue
+    local u; u=$(basename "$f" .jsonl)
+    [[ "$u" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || continue
+    case "$seen_uuids" in *" $u "*) continue ;; esac
+    entries+=("orphan:$f")
+    seen_uuids+="$u "
+  done < <(find "$projects_dir" -maxdepth 2 -type f -name '*.jsonl' \
+              -mtime -"$ORPHAN_MAX_AGE_DAYS" -printf '%T@\t%p\n' 2>/dev/null \
+            | sort -rn | cut -f2- | head -n "$ORPHAN_LIMIT")
 
   if [ ${#entries[@]} -eq 0 ]; then
     echo "No hay sesiones guardadas."
@@ -230,18 +354,16 @@ pick_session() {
     i=$((i + 1))
     local kind="${entry%%:*}"
     local f="${entry#*:}"
-    local sid=$(basename "$f" .json)
-    IFS='|' read -r name uuid cwd < <(python3 -c "
-import json, os
-d = json.load(open('$f'))
-cwd = d.get('cwd', '')
-h = os.environ.get('HOME', '')
-if cwd.startswith(h):
-    cwd = '~' + cwd[len(h):]
-print(f\"{d.get('name','(sin nombre)')}|{d.get('sessionId','N/A')}|{cwd}\")" 2>/dev/null)
+    local sid
+    if [ "$kind" = "orphan" ]; then sid=$(basename "$f" .jsonl); else sid=$(basename "$f" .json); fi
+    local name uuid cwd _raw
+    IFS='|' read -r name uuid cwd _raw < <(_session_meta "$f")
     local mtime=$(stat -c '%y' "$f" 2>/dev/null | cut -d. -f1)
     local tag=""
-    [ "$kind" = "backup" ] && tag="  [respaldo]"
+    case "$kind" in
+      backup) tag="  [respaldo]" ;;
+      orphan) tag="  [huérfana]" ;;
+    esac
     echo "  $i) $mtime  $sid  $uuid  $cwd  $name$tag"
   done
   echo "  m) Ingresar ID manualmente"
@@ -271,17 +393,18 @@ print(f\"{d.get('name','(sin nombre)')}|{d.get('sessionId','N/A')}|{cwd}\")" 2>/
       local entry="${entries[$idx]}"
       local kind="${entry%%:*}"
       local f="${entry#*:}"
-      local sid=$(basename "$f" .json)
-      local uuid=$(python3 -c "import json; print(json.load(open('$f')).get('sessionId',''))" 2>/dev/null)
 
-      # Backup antes de reanudar (por si crashea y Claude borra el .json)
-      if [ "$kind" = "active" ]; then
-        cp "$f" "$backup_dir/$sid.json" 2>/dev/null || true
-        echo "Sesión respaldada en $backup_dir/$sid.json"
+      local name uuid cwd_disp orig_cwd
+      IFS='|' read -r name uuid cwd_disp orig_cwd < <(_session_meta "$f")
+
+      # Respaldar antes de reanudar (por si crashea sin limpieza). Para
+      # huérfanas además sintetiza el respaldo que nunca llegó a existir.
+      if [ "$kind" = "active" ] || [ "$kind" = "orphan" ]; then
+        _backup_session "$kind" "$f" "$uuid" "$orig_cwd" "$name"
+        echo "Sesión respaldada en $backup_dir/$uuid.json"
       fi
 
       # cd al cwd original de la sesión
-      local orig_cwd=$(python3 -c "import json; print(json.load(open('$f')).get('cwd',''))" 2>/dev/null)
       if [ -n "$orig_cwd" ] && [ -d "$orig_cwd" ]; then
         cd "$orig_cwd"
         echo "Cambiando a $orig_cwd"
