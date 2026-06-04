@@ -172,6 +172,27 @@ sudo bash ./protect-compositor-scheduling.sh revert    # removes all cgroup drop
 # Experiment 2 (packages) rolls back like any apt upgrade; the script saves a dpkg selections snapshot
 ```
 
+## Test log
+
+> Update this table as each step is applied and observed. "Result" should record how many days of normal heavy load passed with zero SIGTRAP+`BadWindow` crash — the crash only appears in long bursty sessions, so a clean afternoon proves nothing.
+
+| Date | Step | Applied | Result |
+|---|---|---|---|
+| 2026-06-04 | baseline | — | PRIME=`on-demand`, everything at `CPUWeight=100`, SIGTRAP+`BadWindow` crash at 13:34:53 (hard power-off) |
+| 2026-06-04 | Exp 1 — scheduling partition | ✅ live, no reboot | verified live: `user.slice` 5000/5000, `docker.service` 50/50, `org.gnome.Shell@wayland.service` 10000 + `MemoryLow=512M` |
+| 2026-06-04 | Exp 2 — stack update | ✅ installed, **reboot pending** | nvidia `580.126.09→580.159.03`, kernel `6.17.0-22→6.17.0-35`, gnome-shell `…13→…14`; `sysstat` enabled+active. Running kernel/module stay old until reboot |
+| _pending_ | observe under load | _awaiting days_ | _watch `journalctl -b 0` for SIGTRAP/`BadWindow` + `your system is too slow` under real bursts_ |
+
+### Deployment notes (2026-06-04)
+
+- **Reboot is required before Exp 2 takes effect.** Immediately after the upgrade, `uname -r` still reports `6.17.0-22-generic` and `cat /sys/module/nvidia/version` still reports `580.126.09` — the new kernel + NVIDIA module only load on the next boot (`/var/run/reboot-required` is present). Until then you are running Exp 1 (scheduling) on the *old* driver/kernel.
+- **Orphaned packages after the driver bump.** The old firmware lingers; clean with `sudo apt autoremove` (drops `nvidia-firmware-580-580.126.09`, `libwoff1`, `postgresql-client-16`).
+- **APT source noise surfaced by the upgrade** — unrelated to this crash, but worth cleaning so `apt update` stays green and a future `update-graphics-stack.sh` run isn't masked by errors:
+  - `aaddrick.github.io/claude-desktop-debian` — `Release` file gone (dead repo) → disable the `.list`.
+  - `aquasecurity.github.io/trivy-repo` — `NO_PUBKEY 35B8ACA44FD9CA9F` → re-import the Trivy signing key.
+  - `apt.fury.io/notion-repackaged` — no `Release`/`Packages` (silently ignored).
+  - `google-chrome.list` + `microsoft-edge.list` declare the same target ("configured multiple times") → dedupe one of them.
+
 ## Known Constraints
 
 * **cgroup `CPUWeight` only bites under contention.** That is the whole point (you don't want to throttle idle capacity), but it means you cannot *prove* the fix on an idle machine — only a real burst exercises it. Use PSI to watch it work.
