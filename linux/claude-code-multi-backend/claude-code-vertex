@@ -314,6 +314,34 @@ json.dump(rec, open(dest, "w"))
 PY
 }
 
+# cwd de CREACIÓN de una sesión: el primer `cwd` registrado en su transcript
+# real (~/.claude/projects/<proj>/<uuid>.jsonl). Ese es el único cwd que mapea
+# al project-dir donde Claude Code archivó el transcript, y por lo tanto el
+# único desde el que `claude --resume UUID` la encuentra. El heartbeat/respaldo
+# guarda el ÚLTIMO cwd: si la sesión cambió de worktree a mitad de vida (típico
+# con worktrees), ese cwd ya no mapea al transcript y el --resume falla con
+# "No conversation found". Vacío si no hay transcript o el id no es un UUID.
+_creation_cwd_for_uuid() {
+  local uuid="$1" tr
+  [[ "$uuid" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || return 0
+  tr=$(find "$HOME/.claude/projects" -maxdepth 2 -type f -name "$uuid.jsonl" -print -quit 2>/dev/null)
+  [ -n "$tr" ] || return 0
+  python3 -c "
+import json, sys
+for line in open(sys.argv[1], encoding='utf-8', errors='replace'):
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        o = json.loads(line)
+    except Exception:
+        continue
+    if o.get('cwd'):
+        print(o['cwd'])
+        break
+" "$tr" 2>/dev/null
+}
+
 # Garantiza un cwd válido antes de `claude --resume UUID`.
 # Claude Code resuelve --resume por el mapeo cwd→~/.claude/projects/<dir-codificado>;
 # retomar desde otro directorio termina en "session not found". Si el cwd
@@ -379,6 +407,17 @@ _manual_resume() {
       local _n _u _cd
       IFS='|' read -r _n _u _cd cwd < <(_session_meta "$tr")
     fi
+  fi
+
+  # 3) Preferir el cwd de CREACIÓN (transcript) sobre el del heartbeat: si la
+  #    sesión migró de worktree, solo el de creación mapea al project-dir y
+  #    permite que --resume la encuentre. (manual_id puede ser el UUID; el
+  #    transcript se nombra por UUID, así que resolvemos contra él.)
+  local _ccwd
+  _ccwd=$(_creation_cwd_for_uuid "$manual_id")
+  if [ -n "$_ccwd" ] && [ "$_ccwd" != "$cwd" ]; then
+    [ -n "$cwd" ] && echo "Nota: heartbeat apunta a '$cwd'; uso el cwd de creación del transcript."
+    cwd="$_ccwd"
   fi
 
   _ensure_session_cwd "$resolved" "$cwd"
@@ -501,6 +540,19 @@ pick_session() {
 
       local name uuid cwd_disp orig_cwd
       IFS='|' read -r name uuid cwd_disp orig_cwd < <(_session_meta "$f")
+
+      # Para active/backup el cwd salió del heartbeat (ÚLTIMO cwd); si la sesión
+      # migró de worktree, ese cwd no mapea al transcript y --resume falla. El
+      # cwd de creación (primer cwd del .jsonl) es la fuente autoritativa para
+      # --resume. (Para orphan, _session_meta ya leyó el .jsonl → coincide, no-op.)
+      local creation_cwd
+      creation_cwd=$(_creation_cwd_for_uuid "$uuid")
+      if [ -n "$creation_cwd" ] && [ "$creation_cwd" != "$orig_cwd" ]; then
+        echo "Nota: la sesión cambió de directorio durante su vida."
+        echo "      heartbeat: $orig_cwd"
+        echo "      creación:  $creation_cwd  ← usando este para --resume"
+        orig_cwd="$creation_cwd"
+      fi
 
       # Respaldar antes de reanudar (por si crashea sin limpieza). Para
       # huérfanas además sintetiza el respaldo que nunca llegó a existir.
