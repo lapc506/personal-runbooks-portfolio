@@ -108,6 +108,16 @@ Tres arreglos cierran el hueco:
    recrearlo vacío antes del resume en vez de saltarse el `cd` en silencio.
    El resume por **ID manual** también localiza el cwd (heartbeat → respaldo →
    transcript) y aplica la misma lógica.
+4. **cwd de creación vs. cwd del heartbeat** — Claude Code archiva el transcript
+   bajo el project-dir que corresponde al cwd **de creación** de la sesión, y no
+   lo re-archiva nunca. El heartbeat/respaldo, en cambio, guarda el **último**
+   cwd. Si una sesión cambia de directorio a mitad de vida (típico al saltar
+   entre worktrees), esos dos divergen: el menú podía mandar a retomar desde el
+   último cwd, donde `--resume` falla con *"No conversation found with session
+   ID"* porque el transcript vive en otro project-dir. El selector ahora deriva
+   el cwd autoritativo del **primer `cwd` del transcript** (`_creation_cwd_for_uuid`),
+   con fallback al heartbeat, y avisa en pantalla cuando la sesión migró. Esto es
+   distinto del caso 3 (cwd **borrado**): acá el cwd existe, pero es el equivocado.
 
 Variables de entorno opcionales: `ORPHAN_MAX_AGE_DAYS` (default 14),
 `ORPHAN_LIMIT` (default 25).
