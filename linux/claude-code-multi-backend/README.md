@@ -92,7 +92,7 @@ los que quedaron huérfanos. Por eso una sesión que muere en un **freeze de GPU
 corte de energía** desaparecía del menú aunque su transcript siguiera intacto en
 disco.
 
-Dos arreglos cierran el hueco:
+Tres arreglos cierran el hueco:
 
 1. **Fuente "huérfana"** — el selector escanea los transcripts reales en
    `~/.claude/projects` (últimos `ORPHAN_MAX_AGE_DAYS` días, tope `ORPHAN_LIMIT`)
@@ -101,6 +101,13 @@ Dos arreglos cierran el hueco:
 2. **Hook `SessionStart`** (`hooks/session-backup.sh`) — respalda la metadata de
    cada sesión **apenas arranca**, no sólo cuando la retomás por el menú. Así el
    respaldo sobrevive a un crash que ocurra antes de retomarla.
+3. **Recreación del cwd borrado** — Claude Code resuelve `--resume` por el
+   mapeo `cwd → ~/.claude/projects/<dir-codificado>`; retomar desde otro
+   directorio falla con "session not found". Si el cwd original ya no existe
+   (caso típico: un worktree limpiado post-merge), el selector ofrece
+   recrearlo vacío antes del resume en vez de saltarse el `cd` en silencio.
+   El resume por **ID manual** también localiza el cwd (heartbeat → respaldo →
+   transcript) y aplica la misma lógica.
 
 Variables de entorno opcionales: `ORPHAN_MAX_AGE_DAYS` (default 14),
 `ORPHAN_LIMIT` (default 25).

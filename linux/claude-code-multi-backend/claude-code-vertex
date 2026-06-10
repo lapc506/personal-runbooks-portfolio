@@ -266,6 +266,33 @@ _heartbeat_uuid() {
   python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('sessionId',''))" "$1" 2>/dev/null
 }
 
+# ¿El heartbeat corresponde a un proceso claude realmente vivo?
+# Claude Code borra su heartbeat al salir limpio, pero un crash duro (freeze
+# de GPU/compositor, corte de energía) lo deja huérfano; sin esta validación
+# la sesión muerta se lista como "activa (sin nombre)" y la dedup por UUID
+# le tapa las ramas [respaldo]/[huérfana]. Valida `kill -0 PID` y, si el
+# heartbeat trae procStart (starttime de /proc/<pid>/stat), también lo
+# compara para descartar reuso de PID tras un reinicio.
+_heartbeat_alive() {
+  local f="$1" pid start
+  IFS='|' read -r pid start < <(python3 -c "
+import json, sys
+d = json.load(open(sys.argv[1]))
+print(f\"{d.get('pid', '')}|{d.get('procStart', '')}\")" "$f" 2>/dev/null)
+  [ -n "$pid" ] || return 0   # sin campo pid: asumir vivo (comportamiento previo)
+  kill -0 "$pid" 2>/dev/null || return 1
+  if [ -n "$start" ] && [ -r "/proc/$pid/stat" ]; then
+    # starttime es el campo 22 de /proc/<pid>/stat; el comm entre paréntesis
+    # puede contener espacios, así que se recorta hasta ") " y queda en $20.
+    local actual
+    actual=$(awk '{sub(/.*\) /,""); print $20}' "/proc/$pid/stat" 2>/dev/null)
+    if [ -n "$actual" ] && [ "$actual" != "$start" ]; then
+      return 1   # PID reusado por otro proceso
+    fi
+  fi
+  return 0
+}
+
 # Respalda metadata de una sesión a sessions-backup/<uuid>.json para que
 # reaparezca aunque el proceso muera sin limpieza (freeze/reinicio).
 _backup_session() {
@@ -287,6 +314,78 @@ json.dump(rec, open(dest, "w"))
 PY
 }
 
+# Garantiza un cwd válido antes de `claude --resume UUID`.
+# Claude Code resuelve --resume por el mapeo cwd→~/.claude/projects/<dir-codificado>;
+# retomar desde otro directorio termina en "session not found". Si el cwd
+# original fue borrado (caso típico: limpieza de worktree post-merge), lo
+# recrea: el transcript .jsonl es la verdad de la sesión, el directorio es
+# solo el punto de anclaje del mapeo. Nunca falla: como último recurso avisa
+# y retoma desde el cwd actual.
+_ensure_session_cwd() {
+  local uuid="$1" orig_cwd="$2"
+
+  if [ -z "$orig_cwd" ]; then
+    echo "AVISO: la sesión no registra cwd original; retomando desde $(pwd)."
+    echo "       Si claude no encuentra la sesión $uuid, retomala desde su directorio original."
+    return 0
+  fi
+
+  if [ ! -d "$orig_cwd" ]; then
+    echo "AVISO: el cwd original de la sesión ya no existe (¿worktree limpiado post-merge?):"
+    echo "       $orig_cwd"
+    read -rp "¿Recrearlo (vacío) para poder retomar la sesión? [S/n]: " recreate
+    if [ "$recreate" = "n" ] || [ "$recreate" = "N" ]; then
+      echo "AVISO: sin ese cwd, claude probablemente no encuentre la sesión $uuid."
+      echo "       Retomando desde $(pwd) de todos modos."
+      return 0
+    fi
+    if ! mkdir -p "$orig_cwd" 2>/dev/null; then
+      echo "ERROR: no pude recrear $orig_cwd (¿permisos? ¿punto de montaje ausente?)."
+      echo "       Retomando desde $(pwd); es probable que claude no encuentre la sesión."
+      return 0
+    fi
+    echo "Directorio recreado: $orig_cwd"
+    echo "(quedó vacío — sin git ni .env; si la sesión va a tocar código, movela al checkout real)"
+  fi
+
+  cd "$orig_cwd"
+  echo "Cambiando a $orig_cwd"
+}
+
+# Resume por ID manual: resuelve short-ID, localiza el cwd de la sesión
+# (heartbeat vivo → respaldo → transcript en ~/.claude/projects) y lo
+# garantiza con _ensure_session_cwd antes de armar RESUME_FLAG. Sin esto,
+# un --resume manual desde el directorio equivocado falla siempre.
+_manual_resume() {
+  local manual_id="$1"
+  local resolved hb cwd=""
+  resolved=$(resolve_session_id "$manual_id")
+
+  # 1) Heartbeat (sessions/ o sessions-backup/) con el id resuelto como nombre.
+  for hb in "$HOME/.claude/sessions/$resolved.json" \
+            "$HOME/.claude/sessions-backup/$resolved.json"; do
+    if [ -f "$hb" ]; then
+      cwd=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('cwd',''))" "$hb" 2>/dev/null)
+      break
+    fi
+  done
+
+  # 2) Transcript real por UUID (cubre huérfanas fuera de la ventana del menú).
+  if [ -z "$cwd" ] && [[ "$manual_id" =~ ^[0-9a-f-]{36}$ ]]; then
+    local tr
+    tr=$(find "$HOME/.claude/projects" -maxdepth 2 -type f \
+           -name "$manual_id.jsonl" -print -quit 2>/dev/null)
+    if [ -n "$tr" ]; then
+      local _n _u _cd
+      IFS='|' read -r _n _u _cd cwd < <(_session_meta "$tr")
+    fi
+  fi
+
+  _ensure_session_cwd "$resolved" "$cwd"
+  RESUME_FLAG="--resume $resolved"
+  echo "Retomando sesión $resolved"
+}
+
 pick_session() {
   local session_dir="$HOME/.claude/sessions"
   local backup_dir="$HOME/.claude/sessions-backup"
@@ -297,11 +396,21 @@ pick_session() {
   local seen_uuids=" "   # set (con padding de espacios) de UUIDs ya listados
   local i=0
 
-  # 1) Sesiones activas: heartbeats de procesos claude vivos.
+  # 1) Sesiones activas: heartbeats de procesos claude vivos (PID validado;
+  #    un heartbeat de un proceso muerto se degrada a la rama [respaldo]).
   while IFS= read -r f; do
     [ -f "$f" ] || continue
-    entries+=("active:$f")
     local u; u=$(_heartbeat_uuid "$f")
+    if ! _heartbeat_alive "$f"; then
+      # Crash duro: sintetizar el respaldo que el proceso nunca llegó a
+      # escribir (-u: solo si el heartbeat es más nuevo que el respaldo).
+      # No se marca en seen_uuids → la rama 2 lo lista como [respaldo].
+      if [ -n "$u" ]; then
+        cp -u "$f" "$backup_dir/$u.json" 2>/dev/null || true
+      fi
+      continue
+    fi
+    entries+=("active:$f")
     [ -n "$u" ] && seen_uuids+="$u "
   done < <(ls -t "$session_dir"/*.json 2>/dev/null)
 
@@ -336,9 +445,7 @@ pick_session() {
     if [ "$manual" = "s" ] || [ "$manual" = "S" ]; then
       read -rp "Session ID: " manual_id
       if [ -n "$manual_id" ]; then
-        manual_id=$(resolve_session_id "$manual_id")
-        RESUME_FLAG="--resume $manual_id"
-        echo "Retomando sesión $manual_id"
+        _manual_resume "$manual_id"
         return
       fi
     fi
@@ -379,9 +486,7 @@ pick_session() {
     if [ "$sel" = "m" ] || [ "$sel" = "M" ]; then
       read -rp "Session ID: " manual_id
       if [ -n "$manual_id" ]; then
-        manual_id=$(resolve_session_id "$manual_id")
-        RESUME_FLAG="--resume $manual_id"
-        echo "Retomando sesión $manual_id"
+        _manual_resume "$manual_id"
       else
         RESUME_FLAG=""
         echo "Nueva sesión"
@@ -404,11 +509,9 @@ pick_session() {
         echo "Sesión respaldada en $backup_dir/$uuid.json"
       fi
 
-      # cd al cwd original de la sesión
-      if [ -n "$orig_cwd" ] && [ -d "$orig_cwd" ]; then
-        cd "$orig_cwd"
-        echo "Cambiando a $orig_cwd"
-      fi
+      # cd al cwd original de la sesión (recreándolo si fue borrado;
+      # un cd salteado en silencio rompe el --resume desde otro proyecto)
+      _ensure_session_cwd "$uuid" "$orig_cwd"
 
       RESUME_FLAG="--resume $uuid"
       echo "Retomando sesión $uuid"
