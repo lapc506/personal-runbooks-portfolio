@@ -1,0 +1,29 @@
+# Force Mutter to pick the NVIDIA dGPU as the primary (compositing) GPU.
+#
+# Mutter 46 chooses a "primary" GPU at session start. Its default heuristic
+# (MetaBackendNative / meta_backend_native_get_primary_gpu) prefers the GPU
+# that drives the builtin panel — on this AORUS-15-9MF that is the Intel iGPU
+# (card1, eDP-1), producing this gnome-shell log line:
+#
+#     GPU /dev/dri/card1 selected primary from builtin panel presence
+#
+# Mutter also honors an explicit udev override: a DRM device tagged
+# "mutter-device-preferred-primary" wins over the builtin-panel heuristic.
+# When the override fires, the log line changes to:
+#
+#     GPU /dev/dri/card2 selected primary given udev rule
+#
+# (Tag name + both log strings verified in libmutter-14.so.0.0.0, mutter 46.2.)
+#
+# Match strategy: do NOT match on KERNEL=="card2" — the cardN index is not
+# stable across boots. Match the NVIDIA DRM *card* node structurally:
+#   - SUBSYSTEM=="drm"            : DRM subsystem
+#   - KERNEL=="card[0-9]*"        : a card node (not renderD12x, not a connector)
+#   - ENV{DEVTYPE}=="drm_minor"   : the drm minor, not card1-eDP-1 style children
+#   - DRIVERS=="nvidia"           : bound to the proprietary nvidia driver
+#   - ATTRS{vendor}=="0x10de"     : PCI vendor NVIDIA (belt-and-suspenders)
+#
+# This targets the RTX 4050 Mobile at PCI 0000:01:00.0 (ATTRS{device}==0x28a1)
+# without hard-coding the card index or the device id.
+
+ACTION=="add|change", SUBSYSTEM=="drm", KERNEL=="card[0-9]*", ENV{DEVTYPE}=="drm_minor", DRIVERS=="nvidia", ATTRS{vendor}=="0x10de", TAG+="mutter-device-preferred-primary"

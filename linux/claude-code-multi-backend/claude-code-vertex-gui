@@ -26,4 +26,8 @@ if [ -d "$NVM_DIR/versions/node" ]; then
 fi
 export PATH="$HOME/.local/bin:$HOME/.bun/bin${NVM_NODE_BIN:+:$NVM_NODE_BIN}:$HOME/google-cloud-sdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
 
-exec alacritty -e "$SCRIPT_DIR/claude-code-vertex"
+# WINIT_UNIX_BACKEND=x11: forzar XWayland en Alacritty. Bajo Wayland nativo, su
+# damage/partial-redraw deja artefactos al scrollear (tablas cortadas, texto
+# fantasma); XWayland hace present de superficie completa y los elimina. Ver
+# runbook linux/Ubuntu_Snap_Alacritty_Wayland_Scroll_Artifacts/.
+exec env WINIT_UNIX_BACKEND=x11 alacritty -e "$SCRIPT_DIR/claude-code-vertex"
