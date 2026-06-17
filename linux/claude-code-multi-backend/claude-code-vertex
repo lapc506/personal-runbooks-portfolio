@@ -505,22 +505,30 @@ pick_session() {
   echo ""
   echo "Sesiones existentes:"
   echo "  0) Nueva sesión"
+  # UNA sola columna de UUID: el "short id" de huérfanas/respaldos ERA el UUID
+  # (el transcript se llama <uuid>.jsonl), por eso aparecía duplicado. Y las
+  # filas se arman con TAB y se alinean con `column -t` en vez de espacios
+  # fijos — el ancho variable de los campos descuadraba todo.
+  local rows=()
   for entry in "${entries[@]}"; do
     i=$((i + 1))
     local kind="${entry%%:*}"
     local f="${entry#*:}"
-    local sid
-    if [ "$kind" = "orphan" ]; then sid=$(basename "$f" .jsonl); else sid=$(basename "$f" .json); fi
     local name uuid cwd _raw
     IFS='|' read -r name uuid cwd _raw < <(_session_meta "$f")
-    local mtime=$(stat -c '%y' "$f" 2>/dev/null | cut -d. -f1)
-    local tag=""
+    local mtime; mtime=$(stat -c '%y' "$f" 2>/dev/null | cut -d. -f1)
+    local tag="[activa]"
     case "$kind" in
-      backup) tag="  [respaldo]" ;;
-      orphan) tag="  [huérfana]" ;;
+      backup) tag="[respaldo]" ;;
+      orphan) tag="[huérfana]" ;;
     esac
-    echo "  $i) $mtime  $sid  $uuid  $cwd  $name$tag"
+    rows+=("$(printf '%d)\t%s\t%s\t%s\t%s\t%s' "$i" "$mtime" "$uuid" "$tag" "$cwd" "$name")")
   done
+  if command -v column >/dev/null 2>&1; then
+    printf '%s\n' "${rows[@]}" | column -t -s "$(printf '\t')" | sed 's/^/  /'
+  else
+    printf '  %s\n' "${rows[@]//$'\t'/  }"
+  fi
   echo "  m) Ingresar ID manualmente"
   echo ""
 
