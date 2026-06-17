@@ -32,15 +32,15 @@ warn(){ printf '%s⚠%s %s\n' "$YEL" "$RST" "$*" >&2; }
 
 # Electron/Chromium webview apps by .desktop basename (snap + deb). url-handler
 # variants included so deep-links also launch with the flag.
+# NOTE: the EDITORS (VS Code, Cursor, Kiro, Antigravity) are intentionally NOT here
+# — they get GPU ACCELERATION via editors-accelerate-nvidia.sh instead (an editor
+# benefits from the GPU; a chat doesn't). Keeping them out avoids the two scripts
+# fighting over the same .desktop overrides.
 ELECTRON_DESKTOPS=(
   slack.desktop
   claude-desktop.desktop
-  cursor.desktop cursor-url-handler.desktop
-  antigravity.desktop antigravity-url-handler.desktop
-  kiro.desktop kiro-url-handler.desktop
   spotify.desktop
   notion-app-enhanced.desktop
-  code_code.desktop code_code-url-handler.desktop
   discord_discord.desktop
   notion-snap-reborn_notion-snap-reborn.desktop
   termius-app_termius-app.desktop

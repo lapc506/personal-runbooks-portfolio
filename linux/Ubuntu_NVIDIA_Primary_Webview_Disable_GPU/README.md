@@ -73,6 +73,31 @@ ignores the launcher).
   — none of the targeted apps use it. If a future app does, patch its `Exec=` by
   hand (insert `--disable-gpu` right after the real binary).
 
+## Editors — accelerate, don't disable
+
+Code editors (VS Code, Cursor, Kiro, Antigravity) are Electron too, but you *want*
+the GPU there (smooth UI/scroll/minimap/webviews). Instead of `--disable-gpu`, give
+them the **EGL offload recipe** that routes Chromium to the NVIDIA dGPU — the same
+recipe verified on Chrome:
+
+```bash
+./editors-accelerate-nvidia.sh           # GPU-accelerate the editors on NVIDIA
+./editors-accelerate-nvidia.sh --revert  # back to system default
+```
+
+It writes user `.desktop` overrides with
+`env __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia __EGL_VENDOR_LIBRARY_FILENAMES=…/10_nvidia.json <bin> --use-angle=gl-egl`
+on **XWayland** (no `--ozone-platform=wayland`, which avoids the Wayland GBM break).
+
+**Verified** on VS Code: `code --status` → `GPU0 VENDOR=0x10de … NVIDIA … *ACTIVE*`,
+`gpu_compositing: enabled`, `webgl: enabled`. Forks support `cursor/kiro/antigravity --status`.
+(Minor: `vaInitialize failed` = VA-API video decode doesn't apply on NVIDIA — it uses
+NVDEC — harmless for editing.)
+
+Requires the **deb** builds (host Mesa). For VS Code, migrate off the snap first with
+`../Ubuntu_VSCode_Snap_to_Deb/migrate-vscode-snap-to-deb.sh`. The editors are therefore
+**excluded** from `webview-disable-gpu.sh` so the two scripts don't fight.
+
 ## Revert / per-app opt-out
 - All at once: `./webview-disable-gpu.sh --revert`.
 - One app: delete its `~/.local/share/applications/<id>.desktop` override (Electron)
