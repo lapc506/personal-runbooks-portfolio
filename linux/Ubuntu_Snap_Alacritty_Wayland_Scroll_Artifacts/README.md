@@ -177,6 +177,54 @@ that causes the artifact.
 
 ---
 
+## Migration performed — snap → PPA + forced XWayland (belt and suspenders)
+
+The chosen end state on this machine does **both**: leave the snap for a
+host-Mesa build (fixes the root cause — the frozen bundled Mesa) **and** force
+XWayland (the reliable knob). Config lives in `~/.config/alacritty/` (host path,
+not the snap home), so **nothing about the config needs to migrate**.
+
+### 1. Install Alacritty from the PPA, then drop the snap (sudo)
+The `aslatter/ppa` is maintained by an Alacritty maintainer and ships a current
+release linked against the **host** Mesa (the Ubuntu universe package is stale
+0.13). Install the PPA build first, then remove the snap so only `/usr/bin/alacritty`
+remains:
+
+```bash
+sudo add-apt-repository ppa:aslatter/ppa
+sudo apt update
+sudo apt install alacritty          # -> /usr/bin/alacritty, host Mesa
+which alacritty && alacritty --version
+sudo snap remove alacritty          # removes /snap/bin/alacritty + its .desktop
+```
+
+### 2. Force XWayland everywhere it launches (user-space, already applied)
+- **Claude Code GUI launcher** (`linux/claude-code-multi-backend/claude-code-vertex-gui`):
+  `exec alacritty -e …` → `exec env WINIT_UNIX_BACKEND=x11 alacritty -e …`.
+- **Dock / app grid**: a user override `~/.local/share/applications/Alacritty.desktop`
+  with `Exec=env WINIT_UNIX_BACKEND=x11 alacritty`. It takes precedence over the
+  PPA's `/usr/share/applications/Alacritty.desktop`. The dock favorite was
+  repointed from `alacritty_alacritty.desktop` (snap) to `Alacritty.desktop`.
+
+### 3. Verify after relaunch
+```bash
+which alacritty                     # /usr/bin/alacritty (not /snap/bin)
+PID=$(pgrep -x alacritty | head -1)
+grep -iE 'iris_dri|libEGL_mesa' /proc/$PID/maps | awk '{print $6}' | sort -u
+#  -> /usr/lib/x86_64-linux-gnu/dri/...  (host Mesa, NOT /snap/alacritty/...)
+tr '\0' '\n' < /proc/$PID/environ | grep -iE 'WINIT_UNIX_BACKEND|^DISPLAY'
+#  -> WINIT_UNIX_BACKEND=x11
+```
+Then scroll a markdown table — the slice/ghost artifact should be gone.
+
+### Tradeoff of forcing XWayland
+Under XWayland you lose native-Wayland niceties (per-monitor fractional scaling,
+direct Wayland input). On this machine all monitors are `scale=1`, so there's no
+HiDPI blur cost. If you later want native Wayland back, drop `WINIT_UNIX_BACKEND=x11`
+— the PPA's host Mesa alone already removes most of the artifact.
+
+---
+
 ## Scrollback hygiene (separate from the glitch)
 
 Make the cap explicit so it stops being an invisible default. This is housekeeping,

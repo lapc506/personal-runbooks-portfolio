@@ -6,7 +6,7 @@ Gemini API, Vertex AI y OpenCode Go.
 ## Requisitos
 
 - [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) instalado
-- [Alacritty](https://alacritty.org/) instalado (`sudo snap install alacritty`)
+- [Alacritty](https://alacritty.org/) instalado vía PPA (`sudo add-apt-repository ppa:aslatter/ppa && sudo apt install alacritty`) — NO el snap: su Mesa congelado causa artefactos de scroll bajo Wayland (ver `linux/Ubuntu_Snap_Alacritty_Wayland_Scroll_Artifacts/`). El launcher GUI fuerza `WINIT_UNIX_BACKEND=x11`.
 - Python 3.11+ con [`uv`](https://docs.astral.sh/uv/) (solo para Gemini/Vertex via liteLLM)
 - `gcloud` CLI (solo para Vertex AI)
 
