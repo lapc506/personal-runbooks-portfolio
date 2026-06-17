@@ -68,6 +68,11 @@ export LITELLM_MASTER_KEY="${LITELLM_MASTER_KEY:-sk-local-dojo-agent}"
 LITELLM_KEY="$LITELLM_MASTER_KEY"
 USE_PROXY=true
 
+# CLAUDE_CONFIG_DIR home (cuenta/settings). pick_config_dir lo elige en el
+# pipeline; este default defensivo cubre cualquier uso previo de $CC_DIR y
+# respeta un CLAUDE_CONFIG_DIR ya exportado (p. ej. lanzado vía alias).
+CC_DIR="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+
 # --- Helper: guardar variable en .env ---
 save_to_env() {
   local key="$1" val="$2"
@@ -297,7 +302,7 @@ print(f\"{d.get('pid', '')}|{d.get('procStart', '')}\")" "$f" 2>/dev/null)
 # reaparezca aunque el proceso muera sin limpieza (freeze/reinicio).
 _backup_session() {
   local kind="$1" f="$2" uuid="$3" cwd="$4" name="$5"
-  local backup_dir="$HOME/.claude/sessions-backup"
+  local backup_dir="$CC_DIR/sessions-backup"
   [ -n "$uuid" ] || return 0
   if [ "$kind" = "active" ] || [ "$kind" = "backup" ]; then
     cp "$f" "$backup_dir/$uuid.json" 2>/dev/null && return 0
@@ -324,7 +329,11 @@ PY
 _creation_cwd_for_uuid() {
   local uuid="$1" tr
   [[ "$uuid" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || return 0
-  tr=$(find "$HOME/.claude/projects" -maxdepth 2 -type f -name "$uuid.jsonl" -print -quit 2>/dev/null)
+  # -L: $CC_DIR/projects suele ser un symlink a ~/.claude/projects (homes de
+  # cuenta comparten transcripts vía symlink). find -P (default) NO sigue un
+  # symlink dado como punto de partida → no desciende → encuentra cero. Sin -L,
+  # toda la recuperación de huérfanas queda muerta justo en el caso que importa.
+  tr=$(find -L "$CC_DIR/projects" -maxdepth 2 -type f -name "$uuid.jsonl" -print -quit 2>/dev/null)
   [ -n "$tr" ] || return 0
   python3 -c "
 import json, sys
@@ -390,8 +399,8 @@ _manual_resume() {
   resolved=$(resolve_session_id "$manual_id")
 
   # 1) Heartbeat (sessions/ o sessions-backup/) con el id resuelto como nombre.
-  for hb in "$HOME/.claude/sessions/$resolved.json" \
-            "$HOME/.claude/sessions-backup/$resolved.json"; do
+  for hb in "$CC_DIR/sessions/$resolved.json" \
+            "$CC_DIR/sessions-backup/$resolved.json"; do
     if [ -f "$hb" ]; then
       cwd=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('cwd',''))" "$hb" 2>/dev/null)
       break
@@ -401,7 +410,7 @@ _manual_resume() {
   # 2) Transcript real por UUID (cubre huérfanas fuera de la ventana del menú).
   if [ -z "$cwd" ] && [[ "$manual_id" =~ ^[0-9a-f-]{36}$ ]]; then
     local tr
-    tr=$(find "$HOME/.claude/projects" -maxdepth 2 -type f \
+    tr=$(find -L "$CC_DIR/projects" -maxdepth 2 -type f \
            -name "$manual_id.jsonl" -print -quit 2>/dev/null)
     if [ -n "$tr" ]; then
       local _n _u _cd
@@ -426,9 +435,9 @@ _manual_resume() {
 }
 
 pick_session() {
-  local session_dir="$HOME/.claude/sessions"
-  local backup_dir="$HOME/.claude/sessions-backup"
-  local projects_dir="$HOME/.claude/projects"
+  local session_dir="$CC_DIR/sessions"
+  local backup_dir="$CC_DIR/sessions-backup"
+  local projects_dir="$CC_DIR/projects"
   mkdir -p "$backup_dir" "$session_dir"
 
   local entries=()
@@ -474,7 +483,7 @@ pick_session() {
     case "$seen_uuids" in *" $u "*) continue ;; esac
     entries+=("orphan:$f")
     seen_uuids+="$u "
-  done < <(find "$projects_dir" -maxdepth 2 -type f -name '*.jsonl' \
+  done < <(find -L "$projects_dir" -maxdepth 2 -type f -name '*.jsonl' \
               -mtime -"$ORPHAN_MAX_AGE_DAYS" -printf '%T@\t%p\n' 2>/dev/null \
             | sort -rn | cut -f2- | head -n "$ORPHAN_LIMIT")
 
@@ -582,7 +591,7 @@ resolve_session_id() {
     return
   fi
   # Buscar UUID en active + backup jsons
-  for dir in "$HOME/.claude/sessions" "$HOME/.claude/sessions-backup"; do
+  for dir in "$CC_DIR/sessions" "$CC_DIR/sessions-backup"; do
     for f in "$dir"/*.json; do
       [ -f "$f" ] || continue
       if python3 -c "import json; exit(0 if json.load(open('$f')).get('sessionId') == '$input' else 1)" 2>/dev/null; then
@@ -616,7 +625,33 @@ kill_port_4000() {
   fi
 }
 
+# --- Selección de settings / cuenta (CLAUDE_CONFIG_DIR) ---
+# andres por default; claude-fa (hello@) para Freedom Academy. Cada home aísla
+# sus credenciales y comparte memory/plugins/skills/hooks vía symlinks (ver
+# ~/.claude-account-setup.sh). Esto debe correr ANTES de pick_session: los
+# heartbeats de sesión viven bajo $CC_DIR, así que el selector lista la cuenta
+# correcta (los transcripts en projects/ están compartidos por symlink).
+pick_config_dir() {
+  echo ""
+  echo "¿Con cuáles settings de Claude Code querés cargar?"
+  echo "  1) claude-andres  (default)         -> ~/.claude-andres"
+  echo "  2) claude-fa      (Freedom Academy) -> ~/.claude-hello"
+  echo ""
+  local sel
+  read -rp "Elegí [1-2, Enter=1]: " sel
+  case "$sel" in
+    2) export CLAUDE_CONFIG_DIR="$HOME/.claude-hello"; echo "Settings: claude-fa (hello@)" ;;
+    *) export CLAUDE_CONFIG_DIR="$HOME/.claude-andres"; echo "Settings: claude-andres" ;;
+  esac
+  CC_DIR="$CLAUDE_CONFIG_DIR"
+  mkdir -p "$CC_DIR"
+  if [ ! -e "$CC_DIR/.credentials.json" ]; then
+    echo "AVISO: $CC_DIR aún no tiene credenciales — Claude pedirá /login."
+  fi
+}
+
 # --- Pipeline ---
+pick_config_dir
 pick_model
 
 echo ""
