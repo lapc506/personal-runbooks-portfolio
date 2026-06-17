@@ -28,11 +28,11 @@ GPU /dev/dri/card1 selected primary from builtin panel presence
 Verify on the running session:
 
 ```bash
-journalctl --user -b 0 -n 4000 | grep 'selected primary'
+journalctl _PID=$(pgrep -x gnome-shell) | grep 'selected primary'
 # → GPU /dev/dri/card1 selected primary from builtin panel presence
 ```
 
-(If the `--user` journal is empty, try `journalctl -b 0 -n 6000 | grep 'selected primary'`. **Do not** run an unbounded `journalctl -b 0 | grep` on this machine — over a multi-day uptime it hangs. Always bound with `-n` or `--since`.)
+(Scope by the **live gnome-shell PID** — `_PID=$(pgrep -x gnome-shell)`. This matters: gnome-shell logs "selected primary" to the **system** journal, NOT `--user` (an earlier draft used `journalctl --user` and only ever returned the *original* login's `card1` line, falsely reading as "udev didn't work"). Scoping by PID also shows only the **current** session's choice, not stale lines from prior logins in the same boot. **Do not** run an unbounded `journalctl -b 0 | grep` on this machine — over a multi-day uptime it hangs.)
 
 ## Root Cause
 
@@ -111,7 +111,7 @@ udevadm info /sys/class/drm/card2 | grep -i 'mutter-device-preferred-primary'
 After logging back in:
 
 ```bash
-journalctl --user -b 0 -n 4000 | grep 'selected primary'
+journalctl _PID=$(pgrep -x gnome-shell) | grep 'selected primary'
 # SUCCESS → GPU /dev/dri/card2 selected primary given udev rule
 # (was:   → GPU /dev/dri/card1 selected primary from builtin panel presence)
 ```
@@ -168,11 +168,11 @@ These apply to **both** options — once the dGPU is primary, the compositor top
 
 ## Test + rollback procedure (summary)
 
-1. Baseline: `journalctl --user -b 0 -n 4000 | grep 'selected primary'` → confirm `card1 ... builtin panel presence`.
+1. Baseline: `journalctl _PID=$(pgrep -x gnome-shell) | grep 'selected primary'` → confirm `card1 ... builtin panel presence`.
 2. Install the udev rule, `udevadm control --reload`, `udevadm trigger --subsystem-match=drm --action=change`.
 3. Confirm the tag: `udevadm info /sys/class/drm/card2 | grep mutter-device-preferred-primary`.
 4. Log out / log in.
-5. Verify: `journalctl --user -b 0 -n 4000 | grep 'selected primary'` → expect `card2 ... given udev rule`.
+5. Verify: `journalctl _PID=$(pgrep -x gnome-shell) | grep 'selected primary'` → expect `card2 ... given udev rule`.
 6. If it did not switch, fall back to Option A (`sudo prime-select nvidia` + logout).
 7. Rollback C: delete the rule + reload + trigger + relog. Rollback A: `sudo prime-select on-demand` + relog.
 
