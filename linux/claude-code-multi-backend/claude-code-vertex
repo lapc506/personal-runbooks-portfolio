@@ -351,6 +351,48 @@ for line in open(sys.argv[1], encoding='utf-8', errors='replace'):
 " "$tr" 2>/dev/null
 }
 
+# Epoch (segundos) de CREACIÓN de una sesión, para ordenar el menú por fecha
+# de nacimiento real y no por mtime (= última escritura del transcript, que es
+# lo que reportan `ls -t`/`stat %y`/`find -printf %T@`). La verdad de la
+# creación vive DENTRO del .jsonl: el primer registro con `timestamp`. Acepta
+# tanto un heartbeat .json (resuelve el .jsonl por UUID) como el propio
+# transcript. Si no hay transcript ni timestamp, cae al mtime del archivo.
+_creation_epoch() {
+  local f="$1" uuid="$2" tr="" ts=""
+  if [[ "$uuid" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+    tr=$(find -L "$CC_DIR/projects" -maxdepth 2 -type f -name "$uuid.jsonl" -print -quit 2>/dev/null)
+  fi
+  [ -z "$tr" ] && [[ "$f" == *.jsonl ]] && tr="$f"
+  if [ -n "$tr" ]; then
+    ts=$(python3 - "$tr" <<'PY' 2>/dev/null
+import sys, json
+from datetime import datetime
+for line in open(sys.argv[1], encoding='utf-8', errors='replace'):
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        o = json.loads(line)
+    except Exception:
+        continue
+    t = o.get('timestamp')
+    if not t:
+        continue
+    try:
+        print(int(datetime.fromisoformat(t.replace('Z', '+00:00')).timestamp()))
+        break
+    except Exception:
+        continue
+PY
+)
+  fi
+  if [ -n "$ts" ]; then
+    echo "$ts"
+  else
+    stat -c '%Y' "$f" 2>/dev/null || echo 0
+  fi
+}
+
 # Garantiza un cwd válido antes de `claude --resume UUID`.
 # Claude Code resuelve --resume por el mapeo cwd→~/.claude/projects/<dir-codificado>;
 # retomar desde otro directorio termina en "session not found". Si el cwd
@@ -502,6 +544,29 @@ pick_session() {
     return
   fi
 
+  # Orden GLOBAL por fecha de creación (desc). Antes el listado eran tres
+  # bloques concatenados (activa → respaldo → cerrada), cada uno ordenado por
+  # su cuenta, así que una sesión recién cerrada nunca podía ser la #1: caía
+  # debajo de toda activa/respaldo sin importar cuándo había nacido. Acá se
+  # unifican los tres tipos en una sola lista ordenada por epoch de creación,
+  # y `entry_epochs` queda en paralelo para mostrar esa misma fecha en el menú.
+  local entry_epochs=()
+  if [ ${#entries[@]} -gt 0 ]; then
+    local sortable=()
+    for entry in "${entries[@]}"; do
+      local _f="${entry#*:}"
+      local _u; _u=$(_heartbeat_uuid "$_f")
+      [ -n "$_u" ] || _u=$(basename "$_f" .jsonl)
+      local _ep; _ep=$(_creation_epoch "$_f" "$_u")
+      sortable+=("$_ep|$entry")
+    done
+    entries=()
+    while IFS= read -r _line; do
+      entry_epochs+=("${_line%%|*}")
+      entries+=("${_line#*|}")
+    done < <(printf '%s\n' "${sortable[@]}" | sort -t'|' -k1,1nr)
+  fi
+
   echo ""
   echo "Sesiones existentes:"
   echo "  0) Nueva sesión"
@@ -510,19 +575,29 @@ pick_session() {
   # filas se arman con TAB y se alinean con `column -t` en vez de espacios
   # fijos — el ancho variable de los campos descuadraba todo.
   local rows=()
-  for entry in "${entries[@]}"; do
-    i=$((i + 1))
+  local n=${#entries[@]}
+  local idx
+  for ((idx = 0; idx < n; idx++)); do
+    local entry="${entries[$idx]}"
+    i=$((idx + 1))
     local kind="${entry%%:*}"
     local f="${entry#*:}"
     local name uuid cwd _raw
     IFS='|' read -r name uuid cwd _raw < <(_session_meta "$f")
-    local mtime; mtime=$(stat -c '%y' "$f" 2>/dev/null | cut -d. -f1)
+    # Fecha de CREACIÓN (epoch ya calculado para el sort), no el mtime: si
+    # mostrara mtime, las filas se verían desordenadas respecto a la columna.
+    local ep="${entry_epochs[$idx]}" created="?"
+    [ -n "$ep" ] && [ "$ep" != "0" ] && created=$(date -d "@$ep" '+%Y-%m-%d %H:%M' 2>/dev/null)
+    # kind "orphan" = transcript sin heartbeat vivo ni respaldo. En la práctica
+    # eso es una sesión CERRADA limpiamente (Claude Code borra su heartbeat al
+    # salir): el crash duro deja heartbeat zombi y lo agarra la pasada 1 como
+    # [respaldo]. Por eso la etiqueta visible es [cerrada], no [huérfana].
     local tag="[activa]"
     case "$kind" in
       backup) tag="[respaldo]" ;;
-      orphan) tag="[huérfana]" ;;
+      orphan) tag="[cerrada]" ;;
     esac
-    rows+=("$(printf '%d)\t%s\t%s\t%s\t%s\t%s' "$i" "$mtime" "$uuid" "$tag" "$cwd" "$name")")
+    rows+=("$(printf '%d)\t%s\t%s\t%s\t%s\t%s' "$i" "$created" "$uuid" "$tag" "$cwd" "$name")")
   done
   if command -v column >/dev/null 2>&1; then
     printf '%s\n' "${rows[@]}" | column -t -s "$(printf '\t')" | sed 's/^/  /'
