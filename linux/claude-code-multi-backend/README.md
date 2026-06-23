@@ -68,8 +68,11 @@ API key en https://opencode.ai/auth
 
 - **Selección de backend** al arrancar
 - **Resume de sesiones** con respaldo automático (`~/.claude/sessions-backup/`)
-- **Recuperación de sesiones huérfanas**: lista también las sesiones reales que
-  quedaron sin heartbeat tras un crash (ver abajo)
+- **Recuperación de sesiones cerradas/huérfanas**: lista también las sesiones
+  reales que ya no tienen heartbeat —tanto las cerradas limpiamente como las que
+  murieron en un crash (ver abajo)
+- **Orden por fecha de creación**: el menú unifica las tres fuentes en una sola
+  lista ordenada por cuándo nació cada sesión (no por última escritura)
 - **Respaldo al iniciar** vía hook `SessionStart` (no sólo al retomar)
 - **Resolución UUID → short ID**: pegar UUID funciona
 - **Confirmación de directorio** antes de lanzar
@@ -78,13 +81,14 @@ API key en https://opencode.ai/auth
 
 ## Recuperación de sesiones (cómo funciona)
 
-El selector arma la lista desde **tres fuentes**, deduplicadas por UUID:
+El selector arma la lista desde **tres fuentes**, deduplicadas por UUID y
+ordenadas globalmente por **fecha de creación** (desc):
 
 | Fuente | Origen | Tag |
 |---|---|---|
-| Activas | `~/.claude/sessions/<pid>.json` (heartbeat de procesos vivos) | — |
+| Activas | `~/.claude/sessions/<pid>.json` (heartbeat de procesos vivos) | `[activa]` |
 | Respaldos | `~/.claude/sessions-backup/<uuid>.json` | `[respaldo]` |
-| Huérfanas | `~/.claude/projects/<proj>/<uuid>.jsonl` (transcripts reales) | `[huérfana]` |
+| Cerradas | `~/.claude/projects/<proj>/<uuid>.jsonl` (transcripts reales) | `[cerrada]` |
 
 El heartbeat `<pid>.json` lo escribe Claude Code y **sólo existe mientras el
 proceso vive**; al salir limpio lo borra, y al arrancar tras un reinicio purga
@@ -92,9 +96,17 @@ los que quedaron huérfanos. Por eso una sesión que muere en un **freeze de GPU
 corte de energía** desaparecía del menú aunque su transcript siguiera intacto en
 disco.
 
-Tres arreglos cierran el hueco:
+> **Sobre la etiqueta `[cerrada]`** — la tercera fuente lista todo transcript
+> sin heartbeat vivo ni respaldo. En la práctica eso es, casi siempre, una
+> sesión **cerrada limpiamente** (Claude Code borra su heartbeat al salir). El
+> crash duro deja un heartbeat *zombi* que la pasada de "activas" detecta (PID
+> muerto) y degrada a `[respaldo]`; sólo si ese heartbeat también se perdió cae
+> acá. Por eso la etiqueta dice `[cerrada]` y no `[huérfana]`: refleja el caso
+> común sin alarmar, y la sesión es recuperable igual.
 
-1. **Fuente "huérfana"** — el selector escanea los transcripts reales en
+Cinco arreglos cierran el hueco:
+
+1. **Fuente "cerrada/huérfana"** — el selector escanea los transcripts reales en
    `~/.claude/projects` (últimos `ORPHAN_MAX_AGE_DAYS` días, tope `ORPHAN_LIMIT`)
    y muestra cualquiera sin heartbeat vivo ni respaldo. El transcript es la
    fuente de verdad, así que la sesión siempre es recuperable.
@@ -118,6 +130,13 @@ Tres arreglos cierran el hueco:
    el cwd autoritativo del **primer `cwd` del transcript** (`_creation_cwd_for_uuid`),
    con fallback al heartbeat, y avisa en pantalla cuando la sesión migró. Esto es
    distinto del caso 3 (cwd **borrado**): acá el cwd existe, pero es el equivocado.
+5. **Orden por fecha de creación** — antes el menú eran tres bloques concatenados
+   (activas → respaldos → cerradas), cada uno ordenado por su cuenta, así que una
+   sesión recién cerrada nunca podía quedar arriba: caía debajo de toda activa y
+   todo respaldo sin importar cuándo había nacido. Ahora las tres fuentes se
+   unifican en una sola lista ordenada por el **primer `timestamp` del transcript**
+   (creación real), no por el `mtime` del archivo (última escritura). La columna
+   de fecha del menú muestra esa misma fecha de creación.
 
 Variables de entorno opcionales: `ORPHAN_MAX_AGE_DAYS` (default 14),
 `ORPHAN_LIMIT` (default 25).
