@@ -1,5 +1,7 @@
 # Ubuntu Snap Alacritty — Wayland Scroll Artifacts & Scrollback Hygiene
 
+> **Update (2026-06):** the live config is now **Alacritty 0.16 from the host** (migrated off the snap), and the correct TOML table is **`[scrolling]`** (`[scrollback]` is the deprecated name). The XWayland workaround still applies; the "snap's bundled Mesa" framing no longer does.
+
 Kill the **visual scroll glitch** in a snap-confined Alacritty — the ghost text,
 stale lines that don't clear on scroll, half-redrawn rows you've been fixing by
 **nudging the zoom in/out** — and, separately, put an **explicit scrollback cap**
