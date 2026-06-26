@@ -266,9 +266,34 @@ print(f"{label}|{uuid}|{disp(cwd)}|{cwd}")
 PY
 }
 
-# Lee el sessionId de un heartbeat .json (active/backup).
+# Lee el sessionId de un archivo de sesión. Acepta tanto un heartbeat .json
+# (un solo objeto: sessions/ y sessions-backup/) como un transcript .jsonl
+# (JSON Lines: ~/.claude/projects/<proj>/<uuid>.jsonl, que el bucle de orden
+# le pasa para las huérfanas). json.load() solo parsea UN objeto, así que sobre
+# un .jsonl multilínea lanzaba JSONDecodeError → python3 exit 1 → bajo set -e la
+# asignación `_u=$(_heartbeat_uuid ...)` mataba el script (y con él la terminal
+# lanzada por `alacritty -e`). Intenta json.load (rápido para .json) y, si falla,
+# barre líneas como JSONL. NUNCA retorna ≠0: el `|| true` final lo garantiza.
 _heartbeat_uuid() {
-  python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('sessionId',''))" "$1" 2>/dev/null
+  python3 - "$1" 2>/dev/null <<'PY' || true
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except Exception:
+    d = {}
+    for line in open(sys.argv[1], encoding='utf-8', errors='replace'):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            o = json.loads(line)
+        except Exception:
+            continue
+        if isinstance(o, dict) and o.get('sessionId'):
+            d = o
+            break
+print(d.get('sessionId', '') if isinstance(d, dict) else '')
+PY
 }
 
 # ¿El heartbeat corresponde a un proceso claude realmente vivo?
@@ -476,6 +501,41 @@ _manual_resume() {
   echo "Retomando sesión $resolved"
 }
 
+# --- Helpers de formato del menú (layout responsive) ---
+# Ancho de la terminal en columnas. tput primero (lee el TTY real, así respeta
+# el layout vertical/horizontal del momento), luego $COLUMNS, y 80 de piso.
+_term_cols() {
+  local c
+  c=$(tput cols 2>/dev/null) || c=""
+  [[ "$c" =~ ^[0-9]+$ ]] || c="${COLUMNS:-80}"
+  [[ "$c" =~ ^[0-9]+$ ]] || c=80
+  echo "$c"
+}
+
+# Abrevia un path a <=max chars conservando el ÚLTIMO componente, que es lo que
+# distingue una sesión: ~/Documentos/GitHub/foo/bar/monorepo → ~/…/monorepo.
+# Si ni así entra, deja solo el final con elipsis a la izquierda.
+_abbrev_path() {
+  local p="$1" max="$2"
+  [ "${#p}" -le "$max" ] && { printf '%s' "$p"; return; }
+  local base="${p##*/}" head="${p%%/*}"
+  local cand="$head/…/$base"
+  if [ "${#cand}" -le "$max" ]; then
+    printf '%s' "$cand"
+  else
+    printf '…%s' "${base: -$((max - 1))}"
+  fi
+}
+
+# Trunca a <=max chars con … si recorta. Opera por CARÁCTER (no byte): en locale
+# UTF-8, ${#s} y ${s:0:n} cuentan caracteres, así que acentos y emojis de las
+# descripciones no se parten a la mitad.
+_ellipsize() {
+  local s="$1" max="$2"
+  [ "${#s}" -le "$max" ] && { printf '%s' "$s"; return; }
+  printf '%s…' "${s:0:$((max - 1))}"
+}
+
 pick_session() {
   local session_dir="$CC_DIR/sessions"
   local backup_dir="$CC_DIR/sessions-backup"
@@ -555,7 +615,10 @@ pick_session() {
     local sortable=()
     for entry in "${entries[@]}"; do
       local _f="${entry#*:}"
-      local _u; _u=$(_heartbeat_uuid "$_f")
+      # `|| true`: defensa en profundidad contra la trampa de set -e — una
+      # asignación pelada cuyo $( ) falla aborta el script. _heartbeat_uuid ya
+      # no debería fallar, pero el bucle mezcla .json y .jsonl a propósito.
+      local _u; _u=$(_heartbeat_uuid "$_f") || true
       [ -n "$_u" ] || _u=$(basename "$_f" .jsonl)
       local _ep; _ep=$(_creation_epoch "$_f" "$_u")
       sortable+=("$_ep|$entry")
@@ -574,6 +637,23 @@ pick_session() {
   # (el transcript se llama <uuid>.jsonl), por eso aparecía duplicado. Y las
   # filas se arman con TAB y se alinean con `column -t` en vez de espacios
   # fijos — el ancho variable de los campos descuadraba todo.
+  # Formato responsive: en terminal angosta (layout vertical) compactamos cada
+  # sesión a UNA línea — fecha corta, UUID a 8 chars, cwd abreviado y descripción
+  # truncada — para que no se envuelva. En terminal ancha va todo completo.
+  local cols; cols=$(_term_cols)
+  # Umbral alto a propósito: el formato ANCHO (UUID de 36 + cwd y descripción
+  # completos) recién deja de envolver pasados ~150 cols. Una pantalla en layout
+  # VERTICAL ronda 110-120 cols (fuente chica) → entra en compacto; horizontal
+  # (~190+) → ancho. Ajustá este número si tu vertical/horizontal difieren.
+  local narrow=0; [ "$cols" -lt 150 ] && narrow=1
+  # Reparto del ancho sobrante: priorizamos el PATH (identifica el repo) sobre la
+  # descripción. cwd hasta ~1/3 del ancho (tope 50: alcanza para los paths
+  # normales completos; solo worktrees larguísimos se abrevian) y la descripción
+  # se queda con el resto, más resumida.
+  local cwd_max=$(( cols / 3 ))
+  [ "$cwd_max" -gt 50 ] && cwd_max=50; [ "$cwd_max" -lt 16 ] && cwd_max=16
+  local name_max=$(( cols - 46 - cwd_max )); [ "$name_max" -lt 14 ] && name_max=14
+
   local rows=()
   local n=${#entries[@]}
   local idx
@@ -587,7 +667,8 @@ pick_session() {
     # Fecha de CREACIÓN (epoch ya calculado para el sort), no el mtime: si
     # mostrara mtime, las filas se verían desordenadas respecto a la columna.
     local ep="${entry_epochs[$idx]}" created="?"
-    [ -n "$ep" ] && [ "$ep" != "0" ] && created=$(date -d "@$ep" '+%Y-%m-%d %H:%M' 2>/dev/null)
+    local _datefmt='+%Y-%m-%d %H:%M'; [ "$narrow" = "1" ] && _datefmt='+%m-%d %H:%M'
+    [ -n "$ep" ] && [ "$ep" != "0" ] && created=$(date -d "@$ep" "$_datefmt" 2>/dev/null)
     # kind "orphan" = transcript sin heartbeat vivo ni respaldo. En la práctica
     # eso es una sesión CERRADA limpiamente (Claude Code borra su heartbeat al
     # salir): el crash duro deja heartbeat zombi y lo agarra la pasada 1 como
@@ -597,10 +678,25 @@ pick_session() {
       backup) tag="[respaldo]" ;;
       orphan) tag="[cerrada]" ;;
     esac
-    rows+=("$(printf '%d)\t%s\t%s\t%s\t%s\t%s' "$i" "$created" "$uuid" "$tag" "$cwd" "$name")")
+    # En modo compacto recortamos UUID (8 chars), cwd y descripción para que la
+    # fila entre en una sola línea; en modo ancho va todo sin tocar.
+    local show_uuid="$uuid" show_cwd="$cwd" show_name="$name"
+    if [ "$narrow" = "1" ]; then
+      show_uuid="${uuid:0:8}"
+      show_cwd="$(_abbrev_path "$cwd" "$cwd_max")"
+      show_name="$(_ellipsize "$name" "$name_max")"
+    fi
+    rows+=("$(printf '%d)\t%s\t%s\t%s\t%s\t%s' "$i" "$created" "$show_uuid" "$tag" "$show_cwd" "$show_name")")
   done
   if command -v column >/dev/null 2>&1; then
-    printf '%s\n' "${rows[@]}" | column -t -s "$(printf '\t')" | sed 's/^/  /'
+    local _aligned
+    _aligned=$(printf '%s\n' "${rows[@]}" | column -t -s "$(printf '\t')")
+    # Backstop (AMBOS modos): si tras alinear alguna fila excede el ancho útil
+    # (cols menos los 2 de indent), recortala con elipsis para garantizar que
+    # NUNCA se envuelva — ni siquiera si el formato ancho no entra del todo.
+    _aligned=$(printf '%s\n' "$_aligned" \
+      | awk -v w=$((cols - 2)) '{ if (length($0) > w) $0 = substr($0, 1, w - 1) "…"; print }')
+    printf '%s\n' "$_aligned" | sed 's/^/  /'
   else
     printf '  %s\n' "${rows[@]//$'\t'/  }"
   fi
