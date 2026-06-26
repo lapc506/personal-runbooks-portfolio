@@ -512,18 +512,27 @@ _term_cols() {
   echo "$c"
 }
 
-# Abrevia un path a <=max chars conservando el ÚLTIMO componente, que es lo que
-# distingue una sesión: ~/Documentos/GitHub/foo/bar/monorepo → ~/…/monorepo.
-# Si ni así entra, deja solo el final con elipsis a la izquierda.
+# Abrevia un path a <=max chars conservando el SUFIJO más largo que entre (los
+# últimos componentes), no solo el basename: así …/vertivolatam/monorepo se
+# distingue de …/dojocoding/monorepo — el componente padre es el que identifica
+# cuál es. Rearma de derecha a izquierda agregando componentes mientras quepan,
+# con …/ adelante. Si ni el último componente entra, lo recorta crudo.
 _abbrev_path() {
   local p="$1" max="$2"
   [ "${#p}" -le "$max" ] && { printf '%s' "$p"; return; }
-  local base="${p##*/}" head="${p%%/*}"
-  local cand="$head/…/$base"
-  if [ "${#cand}" -le "$max" ]; then
-    printf '%s' "$cand"
-  else
+  local IFS='/' parts=() acc="" cand j
+  read -ra parts <<<"$p"
+  for (( j = ${#parts[@]} - 1; j >= 0; j-- )); do
+    [ -z "${parts[j]}" ] && continue   # saltar el componente vacío de un path absoluto
+    cand="${parts[j]}${acc:+/}$acc"
+    [ "$(( ${#cand} + 2 ))" -gt "$max" ] && break   # 2 = prefijo "…/"
+    acc="$cand"
+  done
+  if [ -z "$acc" ]; then
+    local base="${p##*/}"
     printf '…%s' "${base: -$((max - 1))}"
+  else
+    printf '…/%s' "$acc"
   fi
 }
 
@@ -646,12 +655,12 @@ pick_session() {
   # VERTICAL ronda 110-120 cols (fuente chica) → entra en compacto; horizontal
   # (~190+) → ancho. Ajustá este número si tu vertical/horizontal difieren.
   local narrow=0; [ "$cols" -lt 150 ] && narrow=1
-  # Reparto del ancho sobrante: priorizamos el PATH (identifica el repo) sobre la
-  # descripción. cwd hasta ~1/3 del ancho (tope 50: alcanza para los paths
-  # normales completos; solo worktrees larguísimos se abrevian) y la descripción
-  # se queda con el resto, más resumida.
-  local cwd_max=$(( cols / 3 ))
-  [ "$cwd_max" -gt 50 ] && cwd_max=50; [ "$cwd_max" -lt 16 ] && cwd_max=16
+  # Reparto del ancho sobrante: priorizamos fuerte el PATH (es lo que distingue
+  # entre tus varios monorepos/dojo-os) y dejamos la descripción más resumida.
+  # cwd hasta ~45% del ancho (tope 60: alcanza para los paths normales completos;
+  # solo worktrees larguísimos se abrevian con sufijo) y el resto a la descripción.
+  local cwd_max=$(( cols * 9 / 20 ))
+  [ "$cwd_max" -gt 60 ] && cwd_max=60; [ "$cwd_max" -lt 16 ] && cwd_max=16
   local name_max=$(( cols - 46 - cwd_max )); [ "$name_max" -lt 14 ] && name_max=14
 
   local rows=()
