@@ -502,6 +502,38 @@ _manual_resume() {
 }
 
 # --- Helpers de formato del menú (layout responsive) ---
+# UUIDs de sesiones ORQUESTADAS POR EL USUARIO: history.jsonl registra un
+# sessionId por cada prompt tipeado, así que "aparece en history" ≡ "el humano
+# interactuó con esa sesión". Es el único filtro de procedencia confiable:
+# los teammates de agent teams, los background agents ajenos y los agentes de
+# review (security-review, code-reviewer) escriben transcripts <uuid>.jsonl
+# idénticos en nombre, profundidad y esquema a las sesiones interactivas
+# (userType=external, isSidechain=false — verificado 2026-07-09), así que NO
+# se pueden distinguir por forma, solo por procedencia. Union sobre TODOS los
+# homes de cuenta (~/.claude*): projects/ se comparte entre cuentas vía
+# symlink, y cada cuenta tiene su propio history.jsonl.
+_user_session_uuids() {
+  grep -hoE '"sessionId":"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"' \
+      "$HOME"/.claude*/history.jsonl 2>/dev/null \
+    | cut -d'"' -f4 | sort -u | tr '\n' ' ' || true
+}
+
+# Estado de una sesión en el registro nativo de background agents de Claude
+# Code (`claude agents`): jobs/<primeros-8-hex-del-uuid>/state.json. Si el
+# state es "working", el daemon la considera corriendo: un `--resume` pelado
+# NO adhiere — Claude Code responde "currently running as a background agent"
+# y sugiere `claude agents` o --fork-session. Imprime el state ('' si la
+# sesión no está en el registro). Nunca retorna ≠0 (set -e).
+_bg_state() {
+  local u="$1" sj
+  for sj in "$HOME"/.claude*/jobs/"${u:0:8}"/state.json; do
+    [ -f "$sj" ] || continue
+    python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get('state',''))" "$sj" 2>/dev/null || true
+    return 0
+  done
+  return 0
+}
+
 # Ancho de la terminal en columnas. tput primero (lee el TTY real, así respeta
 # el layout vertical/horizontal del momento), luego $COLUMNS, y 80 de piso.
 _term_cols() {
@@ -569,7 +601,13 @@ pick_session() {
       fi
       continue
     fi
-    entries+=("active:$f")
+    # Un background agent VIVO también escribe heartbeat (verificado
+    # 2026-07-09: la sesión 9dec660a tenía heartbeat + proceso bg-pty-host),
+    # así que sin esto se listaría [activa] y el --resume pelado chocaría
+    # con el aviso de bg. Reclasificar para que la selección ofrezca fork.
+    local akind="active"
+    [ -n "$u" ] && [ "$(_bg_state "$u")" = "working" ] && akind="bg"
+    entries+=("$akind:$f")
     [ -n "$u" ] && seen_uuids+="$u "
   done < <(ls -t "$session_dir"/*.json 2>/dev/null)
 
@@ -586,17 +624,51 @@ pick_session() {
   #    heartbeat vivo ni respaldo. Cierra el hueco donde un freeze/reinicio
   #    mata la sesión antes de respaldarla (ver README "Recuperación").
   #    -maxdepth 2 lista projects/<proj>/<uuid>.jsonl y excluye los
-  #    agent-*.jsonl de subagentes (que viven más profundo).
+  #    agent-*.jsonl de subagentes del Task tool (que viven más profundo, en
+  #    <uuid-sesión>/subagents/). PERO los teammates de agent teams, los bg
+  #    agents y los reviewers son sesiones de primera clase: su <uuid>.jsonl
+  #    vive al MISMO nivel que los tuyos, así que la profundidad no los
+  #    filtra. De eso se encarga el filtro de procedencia de abajo
+  #    (_user_session_uuids): solo sesiones donde el usuario tipeó.
+  #    ORPHAN_ONLY_MINE=0 lo desactiva (p. ej. para rescatar el transcript
+  #    de un teammate puntual; también se puede con "m" + su UUID).
+  local only_mine="${ORPHAN_ONLY_MINE:-1}"
+  local user_uuids=""
+  if [ "$only_mine" = "1" ]; then
+    user_uuids=" $(_user_session_uuids)"
+    # Sin history legible, filtrar ocultaría TODO: mejor listar de más.
+    [ -n "${user_uuids// /}" ] || only_mine=0
+  fi
+  local orphans=0 hidden_agents=0
   while IFS= read -r f; do
     [ -f "$f" ] || continue
     local u; u=$(basename "$f" .jsonl)
     [[ "$u" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]] || continue
     case "$seen_uuids" in *" $u "*) continue ;; esac
-    entries+=("orphan:$f")
+    # El registro jobs/ (background agents) solo contiene trabajos lanzados
+    # por el usuario → presencia ahí ≡ "mía" aunque no esté en history: los
+    # prompts que recibe una sesión bg NO pasan por history.jsonl (verificado
+    # 2026-07-09 con la sesión 9dec660a, que history no conocía).
+    local bstate; bstate=$(_bg_state "$u")
+    if [ "$only_mine" = "1" ] && [ -z "$bstate" ]; then
+      case "$user_uuids" in
+        *" $u "*) ;;
+        *) hidden_agents=$((hidden_agents + 1)); continue ;;
+      esac
+    fi
+    # ¿Figura corriendo como background agent? Etiquetarla: un --resume
+    # pelado no adhiere (ver _bg_state) y la selección ofrece --fork-session.
+    local kind="orphan"
+    [ "$bstate" = "working" ] && kind="bg"
+    entries+=("$kind:$f")
     seen_uuids+="$u "
+    orphans=$((orphans + 1))
+    # El límite cuenta sesiones ACEPTADAS (antes era un head sobre el find:
+    # los transcripts de agentes consumían los slots y desplazaban los tuyos).
+    [ "$orphans" -ge "$ORPHAN_LIMIT" ] && break
   done < <(find -L "$projects_dir" -maxdepth 2 -type f -name '*.jsonl' \
               -mtime -"$ORPHAN_MAX_AGE_DAYS" -printf '%T@\t%p\n' 2>/dev/null \
-            | sort -rn | cut -f2- | head -n "$ORPHAN_LIMIT")
+            | sort -rn | cut -f2-)
 
   if [ ${#entries[@]} -eq 0 ]; then
     echo "No hay sesiones guardadas."
@@ -686,6 +758,7 @@ pick_session() {
     case "$kind" in
       backup) tag="[respaldo]" ;;
       orphan) tag="[cerrada]" ;;
+      bg)     tag="[background]" ;;
     esac
     # En modo compacto recortamos UUID (8 chars), cwd y descripción para que la
     # fila entre en una sola línea; en modo ancho va todo sin tocar.
@@ -710,6 +783,11 @@ pick_session() {
     printf '  %s\n' "${rows[@]//$'\t'/  }"
   fi
   echo "  m) Ingresar ID manualmente"
+  if [ "$hidden_agents" -gt 0 ]; then
+    echo ""
+    echo "  ($hidden_agents sesiones de agentes ocultas — teammates/reviewers/bg;"
+    echo "   ORPHAN_ONLY_MINE=0 para listarlas, o 'm' + UUID para una puntual)"
+  fi
   echo ""
 
   while true; do
@@ -753,17 +831,35 @@ pick_session() {
 
       # Respaldar antes de reanudar (por si crashea sin limpieza). Para
       # huérfanas además sintetiza el respaldo que nunca llegó a existir.
-      if [ "$kind" = "active" ] || [ "$kind" = "orphan" ]; then
+      if [ "$kind" = "active" ] || [ "$kind" = "orphan" ] || [ "$kind" = "bg" ]; then
         _backup_session "$kind" "$f" "$uuid" "$orig_cwd" "$name"
         echo "Sesión respaldada en $backup_dir/$uuid.json"
+      fi
+
+      # Sesión registrada como background agent: un --resume pelado no
+      # adhiere (Claude Code avisa y sale). Ofrecer la copia ramificada,
+      # que es la vía que sí funciona desde un launcher no-interactivo.
+      local fork_flag=""
+      if [ "$kind" = "bg" ]; then
+        echo ""
+        echo "AVISO: esta sesión figura corriendo como background agent."
+        echo "       Para adherirte a la sesión VIVA salí y corré: claude agents"
+        echo "       Desde acá la opción útil es una copia ramificada (--fork-session):"
+        echo "       mismo historial, UUID nuevo, la original sigue intacta."
+        read -rp "¿Retomar como copia ramificada? [S/n]: " bgsel
+        if [ "$bgsel" != "n" ] && [ "$bgsel" != "N" ]; then
+          fork_flag=" --fork-session"
+        else
+          echo "Retomando directo (si sigue viva, claude va a repetir el aviso de bg)."
+        fi
       fi
 
       # cd al cwd original de la sesión (recreándolo si fue borrado;
       # un cd salteado en silencio rompe el --resume desde otro proyecto)
       _ensure_session_cwd "$uuid" "$orig_cwd"
 
-      RESUME_FLAG="--resume $uuid"
-      echo "Retomando sesión $uuid"
+      RESUME_FLAG="--resume $uuid$fork_flag"
+      echo "Retomando sesión $uuid${fork_flag:+ (fork)}"
       break
     fi
     echo "Opción inválida"
