@@ -89,6 +89,7 @@ ordenadas globalmente por **fecha de creación** (desc):
 | Activas | `~/.claude/sessions/<pid>.json` (heartbeat de procesos vivos) | `[activa]` |
 | Respaldos | `~/.claude/sessions-backup/<uuid>.json` | `[respaldo]` |
 | Cerradas | `~/.claude/projects/<proj>/<uuid>.jsonl` (transcripts reales) | `[cerrada]` |
+| Background | idem cerradas + `~/.claude*/jobs/<8-hex>/state.json` = `working` | `[background]` |
 
 El heartbeat `<pid>.json` lo escribe Claude Code y **sólo existe mientras el
 proceso vive**; al salir limpio lo borra, y al arrancar tras un reinicio purga
@@ -103,6 +104,24 @@ disco.
 > muerto) y degrada a `[respaldo]`; sólo si ese heartbeat también se perdió cae
 > acá. Por eso la etiqueta dice `[cerrada]` y no `[huérfana]`: refleja el caso
 > común sin alarmar, y la sesión es recuperable igual.
+
+> **Filtro "orquestadas por mí"** — los teammates de agent teams, los agentes
+> de review (`security-review`, `code-reviewer`) y los background agents son
+> sesiones de primera clase en Claude Code: escriben un `<uuid>.jsonl` al mismo
+> nivel, con el mismo nombre y el mismo esquema que las sesiones interactivas
+> (no se distinguen por forma). La fuente "cerradas" los filtra por
+> **procedencia**: solo lista UUIDs presentes en `~/.claude*/history.jsonl`
+> (sesiones donde el humano tipeó al menos un prompt) o en el registro
+> `~/.claude*/jobs/` (background agents lanzados por el humano; sus prompts NO
+> pasan por history). `ORPHAN_ONLY_MINE=0` desactiva el filtro; una sesión de
+> agente puntual siempre se puede rescatar con `m` + su UUID.
+
+> **Sobre la etiqueta `[background]`** — sesión cuyo `jobs/<8-hex>/state.json`
+> dice `working`: el daemon de Claude Code la considera corriendo, así que un
+> `--resume` pelado **no adhiere** (imprime "currently running as a background
+> agent" y sale). Al seleccionarla, el menú ofrece retomarla como **copia
+> ramificada** (`--fork-session`: mismo historial, UUID nuevo, la original
+> sigue intacta); para adherirse a la sesión viva, usar `claude agents`.
 
 Cinco arreglos cierran el hueco:
 
