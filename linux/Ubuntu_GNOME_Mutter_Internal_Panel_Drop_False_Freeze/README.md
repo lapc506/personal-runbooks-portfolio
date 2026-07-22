@@ -113,6 +113,7 @@ Read-only. Checks the four signatures above, rules the other two crash families 
 | Date | Event | Outcome |
 |---|---|---|
 | 2026-06-10 | baseline incident (mains outage ~20:50 CST) | panel dropped 21:08:07; session alive 81 min on HDMI; VT switch 22:29:13 → invisible console; hard power-off 22:29:42+ (unnecessary) |
+| 2026-07-21 | **scheduling-collapse variant** (no power event) — 3-monitor session (eDP-1 + DP-1 USB-C on i915 + HDMI-A-1 on NVIDIA, NVIDIA forced primary via `61-mutter-primary-nvidia.rules`) under heavy load | **new trigger, same family.** No `ADP1`, no `Xid`, no `i915`/`nv_drm_atomic_commit` errors, no reboot (uptime intact). `rtkit-daemon` SIGKILLed ×4 in-boot, each paired with `gnome-shell: Failed to make thread 'KMS thread' realtime scheduled`; `kernel: workqueue: swap_discard_work hogged CPU` ×2 (zram churn from `swappiness=150`); prior panel-drops 05:33 (`logical_monitor != NULL`) & 14:39 (`no configuration which is-current` ×819). Session logged out 18:00→autologin respawn 18:01, killing every terminal (orphaned all Claude Code sessions). Root cause = **rtkit canary starved by zram-churn CPU + simultaneous reverse-PRIME flips** during workspace-switch animation on 3 heads (`workspaces-only-on-primary=false` → all 3 animate). Mitigation (keeps NVIDIA-primary): `gsettings set org.gnome.mutter workspaces-only-on-primary true` to cut the flip storm from the 3-finger swipe. |
 | _pending_ | next mains outage / UPS transfer | _try Recovery §1–3 before any power button_ |
 
 ## Decision tree
