@@ -38,3 +38,11 @@ powershell -ExecutionPolicy Bypass -File .\QR-Scan.ps1
 
 Hold the QR up to the webcam, click **Capturar QR**. First capture initializes the camera (slow);
 subsequent ones are fast. Clipboard history stays untouched (Win32 `Set-Clipboard` path).
+
+## Roadmap (native WinUI 3)
+
+Live camera preview via the WinUI-Gallery `CaptureElementPreview` sample
+(`CaptureElementPreviewPage.xaml`/`.xaml.cs`), MVVM via CommunityToolkit.Mvvm. Needs the
+Windows App SDK + VS toolchain, absent on the target box (only .NET 9 SDK present, and the
+current PowerShell+WPF + `csc` build covers the need). Until then, the still-photo loop above
+is the shippable preview.

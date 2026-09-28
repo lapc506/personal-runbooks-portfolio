@@ -45,10 +45,3 @@ SAFE (telemetry/vendor, no dependents on a Home box):
 `DiagTrack`, `dmwappushservice`, `InventorySvc`, `nvagent`, `HpTouchpointAnalyticsService`.
 
 NEVER touch unknowns: `wuqisvc` and friends stay as-is until mapped. Unknown != unnecessary.
-
-## Roadmap (native WinUI 3)
-
-A `Microsoft.UI.Xaml` port (stepper via `NavigationView`/custom stepper, live camera via
-WinUI-Gallery `CaptureElementPreview` sample, MVVM via CommunityToolkit.Mvvm) needs the
-Windows App SDK + VS toolchain, absent on the target box (only .NET 9 SDK present). Until then,
-this PowerShell+WPF wizard is the shippable UI.
