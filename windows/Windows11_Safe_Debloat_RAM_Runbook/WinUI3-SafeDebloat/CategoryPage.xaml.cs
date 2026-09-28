@@ -110,12 +110,12 @@ public sealed partial class CategoryPage : Page
                 Message = L10n.Get($"{item.Id}.Impl", desc)
             };
             var riskText = L10n.Get($"{item.Id}.Risk", item.Tip);
-            var riskBadge = RiskBadgeLabel(riskText);
+            var riskBadge = RiskBadgeLabel(item.RiskBadge);
             var infoRisk = new InfoBar
             {
                 IsOpen = true,
                 IsClosable = false,
-                Severity = RiskSeverityFor(riskText),
+                Severity = item.NoRisk ? InfoBarSeverity.Success : InfoBarSeverity.Warning,
                 Title = $"{L10n.Get("Info.Risk.Title", "Riesgos")} — {riskBadge}",
                 Message = riskText
             };
@@ -230,52 +230,14 @@ public sealed partial class CategoryPage : Page
     private static SolidColorBrush PsBrush(byte r, byte g, byte b) =>
         new(Microsoft.UI.ColorHelper.FromArgb(255, r, g, b));
 
-    private static InfoBarSeverity RiskSeverityFor(string riskText)
+    private static string RiskBadgeLabel(RiskBadgeKind riskBadge)
     {
-        if (string.IsNullOrWhiteSpace(riskText))
-            return InfoBarSeverity.Warning;
-
-        return HasNoRisk(riskText) ? InfoBarSeverity.Success : InfoBarSeverity.Warning;
-    }
-
-    private static string RiskBadgeLabel(string riskText)
-    {
-        if (string.IsNullOrWhiteSpace(riskText))
-            return L10n.Get("Info.Risk.LowRisk", "Low risk");
-
-        var normalized = riskText.Trim();
-        if (HasNoRisk(normalized)
-            || normalized.StartsWith("Reversible", StringComparison.OrdinalIgnoreCase))
-            return L10n.Get("Info.Risk.Reversible", "Reversible");
-
-        var lower = normalized.ToLowerInvariant();
-        if (lower.StartsWith("functional", StringComparison.Ordinal)
-            || lower.StartsWith("funcional", StringComparison.Ordinal)
-            || lower.Contains("fall")
-            || lower.Contains("fail")
-            || lower.Contains("no funcion")
-            || lower.Contains("lose")
-            || lower.Contains("pierde")
-            || lower.Contains("perder")
-            || lower.Contains("romp")
-            || lower.Contains("break")
-            || lower.Contains("slower")
-            || lower.Contains("lento")
-            || lower.Contains("won't work"))
+        return riskBadge switch
         {
-            return L10n.Get("Info.Risk.Functional", "Functional");
-        }
-
-        return L10n.Get("Info.Risk.LowRisk", "Low risk");
-    }
-
-    private static bool HasNoRisk(string riskText)
-    {
-        var normalized = riskText.Trim();
-        return normalized.Equals("None", StringComparison.OrdinalIgnoreCase)
-            || normalized.StartsWith("None.", StringComparison.OrdinalIgnoreCase)
-            || normalized.Equals("Ninguno", StringComparison.OrdinalIgnoreCase)
-            || normalized.StartsWith("Ninguno.", StringComparison.OrdinalIgnoreCase);
+            RiskBadgeKind.Reversible => L10n.Get("Info.Risk.Reversible", "Reversible"),
+            RiskBadgeKind.Functional => L10n.Get("Info.Risk.Functional", "Functional"),
+            _ => L10n.Get("Info.Risk.LowRisk", "Low risk")
+        };
     }
 
     private async void Apply_Click(object sender, RoutedEventArgs e)
