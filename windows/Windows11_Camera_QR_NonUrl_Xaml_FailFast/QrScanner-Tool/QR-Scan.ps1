@@ -44,9 +44,9 @@ $timer.Add_Tick({
 function Show-Result($r) {
   if (-not $r) { $st.Text = "Sin QR visible. Apunta al codigo."; return }
   $objs = $r | ForEach-Object { [pscustomobject]@{ BarcodeFormat = $_.BarcodeFormat; Text = $_.Text } }
-  $out.Text = ($objs | ForEach-Object { "[{0}] {1}" -f $_.BarcodeFormat, $_.Text }) -join "`r`n"
+  $out.Text = ($objs | ForEach-Object { $_.Text }) -join "`r`n"
   Set-Clipboard -Value $objs[0].Text
-  $st.Text = "Decodificado + copiado."
+  $st.Text = "Decodificado + copiado ($($objs[0].BarcodeFormat))."
 }
 
 $w.FindName("BScan").Add_Click({
