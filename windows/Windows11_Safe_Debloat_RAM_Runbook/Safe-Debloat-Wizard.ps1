@@ -2,10 +2,29 @@
 # Cada tweak es una tarjeta estilo SettingsExpander (icono+título+descripción+switch) con
 # su propio botón Aplicar + diálogo modal. PowerShell + WPF, sin SDK.
 # La elevación ocurre solo en Safe-Debloat-Apply.ps1 (un UAC).
+# -TestPage N: modo prueba headless, renderiza la página N y sale (sin ShowDialog).
+param([int]$TestPage = -1)
 if ([Threading.Thread]::CurrentThread.GetApartmentState() -ne "STA") {
-  powershell -STA -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath @args; exit $LASTEXITCODE
+  $a = @('-STA','-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$PSCommandPath`"")
+  if ($TestPage -ge 0) { $a += @('-TestPage', "$TestPage") }
+  powershell $a; exit $LASTEXITCODE
 }
 Add-Type -AssemblyName PresentationFramework
+
+# Red de seguridad: excepción no manejada del dispatcher -> log, sin cerrar la app.
+[Windows.Threading.Dispatcher]::CurrentDispatcher.add_UnhandledException({
+  param($s, $e)
+  try { $e.Exception.ToString() | Out-File "$env:TEMP\SafeDebloat-Crash.log" -Append } catch { }
+  $e.Handled = $true
+})
+
+# Red de seguridad: cualquier excepción no manejada del dispatcher se guarda en log
+# y se marca como manejada para que la ventana NO se cierre.
+[Windows.Threading.Dispatcher]::CurrentDispatcher.add_UnhandledException({
+  param($s, $e)
+  try { $e.Exception.ToString() | Out-File "$env:TEMP\SafeDebloat-Crash.log" -Append } catch { }
+  $e.Handled = $true
+})
 
 $groups = @(
   @{ Title = 'Privacidad'; GlyphCode = 0xE72E; Items = @(
@@ -139,8 +158,8 @@ $w.FindName("RailPanel").Background = $script:T.Rail
 $w.FindName("RailTitle").Foreground = $script:T.Fg
 $w.FindName("ProtectNote").Foreground = $script:T.Muted
 
-$navPages = @('Overview', 'Procesos') + ($groups | ForEach-Object { $_.Title })
-$navGlyphs = @([char]0xE9D2, [char]0xE8FD) + ($groups | ForEach-Object { [char]$_.GlyphCode })
+$navPages = @('Overview') + ($groups | ForEach-Object { $_.Title })
+$navGlyphs = @([char]0xE9D2, [char]0xE72E, [char]0xE8B7, [char]0xE7F4, [char]0xE094, [char]0xE713, [char]0xE713)
 $nPages = $navPages.Count
 $checkBoxes = @{}
 $script:page = 0
@@ -240,26 +259,11 @@ function Render-Page($p) {
     Add-Text $host_ "Ultimos 60 s (en vivo):" 13 $true
     $cv = New-Object Windows.Controls.Canvas
     $cv.Height = 120; $cv.Background = "#11111B"
-    for ($gi = 1; $gi -lt 8; $gi++) {
-      $gl = New-Object Windows.Shapes.Line
-      $gl.X1 = $gi / 8 * 560; $gl.X2 = $gi / 8 * 560; $gl.Y1 = 0; $gl.Y2 = 118
-      $gl.Stroke = "#2A2A2A"; $gl.StrokeThickness = 1
-      $cv.Children.Add($gl) | Out-Null
-    }
-    for ($gj = 1; $gj -lt 4; $gj++) {
-      $gl2 = New-Object Windows.Shapes.Line
-      $gl2.X1 = 0; $gl2.X2 = 560; $gl2.Y1 = $gj / 4 * 118; $gl2.Y2 = $gj / 4 * 118
-      $gl2.Stroke = "#2A2A2A"; $gl2.StrokeThickness = 1
-      $cv.Children.Add($gl2) | Out-Null
-    }
-    $script:chartFill = New-Object Windows.Shapes.Polygon
-    $script:chartFill.Fill = New-Object Windows.Media.SolidColorBrush([Windows.Media.Color]::FromArgb(70, 0, 120, 212))
-    $cv.Children.Add($script:chartFill) | Out-Null
     $script:chartLine = New-Object Windows.Shapes.Polyline
     $script:chartLine.Stroke = "#0078D4"; $script:chartLine.StrokeThickness = 2
-    $cv.Children.Add($script:chartLine) | Out-Null
+    $script:chartFill = New-Object Windows.Shapes.Polygon
+    $script:chartFill.Fill = New-Object Windows.Media.SolidColorBrush([Windows.Media.Color]::FromArgb(70, 0, 120, 212))
     $host_.Children.Add($cv) | Out-Null
-    Add-Text $host_ "60 segundos" 11 $false $script:T.Muted
     $tl = New-Object Windows.Controls.Grid
     $tl.ColumnDefinitions.Add((New-Object Windows.Controls.ColumnDefinition)) | Out-Null
     $tl.ColumnDefinitions.Add((New-Object Windows.Controls.ColumnDefinition)) | Out-Null
@@ -274,45 +278,60 @@ function Render-Page($p) {
     $host_.Children.Add($tl) | Out-Null
     $script:chartCanvas = $cv
     Update-Chart
-  } elseif ($p -eq 1) {
     Add-Text $host_ "Procesos (completo)" 16 $true
     Add-Text $host_ "Nuclear = binario bajo C:\Windows (heuristica por ruta). Autostart = StartMode de sus servicios (vacio = app, no servicio). Click en cabecera para ordenar." 12 $false $script:T.Muted
     $dg = New-Object Windows.Controls.DataGrid
-    $dg.AutoGenerateColumns = $false; $dg.IsReadOnly = $true; $dg.Height = 380
-    $dg.GridLinesVisibility = "Horizontal"
+    $dg.AutoGenerateColumns = $false; $dg.IsReadOnly = $true; $dg.Height = 300
+    $dg.GridLinesVisibility = "None"
     $dg.RowHeaderWidth = 0
+    $dg.BorderThickness = "0"
+    $headTpl = [Windows.Markup.XamlReader]::Parse('<DataTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"><TextBlock Text="{Binding}" FontWeight="SemiBold" Foreground="#888888" Margin="4,0,0,0"/></DataTemplate>')
+    try {
+      $hdrType = [System.Type]::GetType("System.Windows.Controls.DataGridColumnHeader, PresentationFramework")
+      if ($hdrType) {
+        $hs = New-Object Windows.Style($hdrType)
+        $hs.Setters.Add((New-Object Windows.Setter([Windows.Controls.Control]::BackgroundProperty, [Windows.Media.Brushes]::Transparent)))
+        $hs.Setters.Add((New-Object Windows.Setter([Windows.Controls.Control]::BorderThicknessProperty, (New-Object Windows.Thickness(0)))))
+        $dg.ColumnHeaderStyle = $hs
+      }
+    } catch { }
     if ($script:T.Win -ne 'White') {
       $dg.Background = $script:T.Win; $dg.Foreground = $script:T.Fg
       $dg.RowBackground = $script:T.Rail; $dg.AlternatingRowBackground = "#262626"
     } else {
-      $dg.AlternatingRowBackground = "#F9F9F9"
+      $dg.AlternatingRowBackground = "#F7F7F7"
     }
     $rowStyle = New-Object Windows.Style([Windows.Controls.DataGridRow])
     $trig = New-Object Windows.Trigger
     $trig.Property = [Windows.Controls.DataGridRow]::IsMouseOverProperty
     $trig.Value = $true
-    $trig.Setters.Add((New-Object Windows.Setter([Windows.Controls.DataGridRow]::BackgroundProperty, $script:T.Hover)))
+    $trig.Setters.Add((New-Object Windows.Setter([Windows.Controls.DataGridRow]::BackgroundProperty, (New-Object Windows.Media.SolidColorBrush([Windows.Media.ColorConverter]::ConvertFromString($script:T.Hover))))))
     $rowStyle.Triggers.Add($trig) | Out-Null
     $dg.RowStyle = $rowStyle
-    $headStyle = New-Object Windows.Style([Windows.Controls.DataGridColumnHeader])
-    $headStyle.Setters.Add((New-Object Windows.Setter([Windows.Controls.Control]::FontWeightProperty, "Bold")))
-    $dg.ColumnHeaderStyle = $headStyle
-    foreach ($c in @(@{H='Proceso';B='Proceso'},@{H='PID';B='PID'},@{H='RAM MB';B='RAM_MB'},
-                     @{H='Nuclear';B='Nuclear'},@{H='Servicios';B='Servicios'},@{H='Autostart';B='Autostart'})) {
+    foreach ($c in @(@{H='Proceso';B='Proceso';W='150'},@{H='PID';B='PID';W='70'},@{H='RAM MB';B='RAM_MB';W='80'},
+                     @{H='Nuclear';B='Nuclear';W='70'},@{H='Servicios';B='Servicios';W='*'},@{H='Autostart';B='Autostart';W='110'})) {
       $col = New-Object Windows.Controls.DataGridTextColumn
       $col.Header = $c.H; $col.Binding = New-Object Windows.Data.Binding($c.B)
+      $col.HeaderTemplate = $headTpl
+      if ($c.W -eq '*') { $col.Width = New-Object Windows.Controls.DataGridLength(1, [Windows.Controls.DataGridLengthUnitType]::Star) }
+      else { $col.Width = [double]$c.W }
       $dg.Columns.Add($col) | Out-Null
     }
     $dg.ItemsSource = @(Get-ProcRows | Sort-Object RAM_MB -Descending)
-    $host_.Children.Add($dg) | Out-Null
+    $frame = New-Object Windows.Controls.Border
+    $frame.CornerRadius = 6
+    $frame.BorderBrush = $(if ($script:T.Win -ne 'White') { "#3A3A3A" } else { "#E1E1E1" })
+    $frame.BorderThickness = 1
+    $frame.Child = $dg
+    $host_.Children.Add($frame) | Out-Null
   } else {
-    $g = $groups[$p - 2]
+    $g = $groups[$p - 1]
     Add-Text $host_ $g.Title 16 $true
     foreach ($it in $g.Items) { $host_.Children.Add((New-Card $it)) | Out-Null }
     $ap1 = New-Object Windows.Controls.Button
     $ap1.Content = "Aplicar $($g.Title)"; $ap1.Width = 220; $ap1.Margin = "0,4,0,0"
     $ap1.Style = $w.FindResource("AccentButton")
-    $ap1.Tag = ($p - 2)
+    $ap1.Tag = ($p - 1)
     $ap1.Add_Click({ Ask-Confirm ([int]$this.Tag) })
     $host_.Children.Add($ap1) | Out-Null
     $script:statusBox = Add-Text $host_ "" 13
@@ -375,7 +394,9 @@ function Update-Chart {
   while ($script:history.Count -gt 60) { $script:history.RemoveAt(0) }
   if ($script:page -ne 0 -or -not $script:chartLine) { return }
   $pts = New-Object Windows.Media.PointCollection
-  $W = 560; $H = 118
+  $W = 560
+  if ($script:chartCanvas -and $script:chartCanvas.ActualWidth -gt 100) { $W = $script:chartCanvas.ActualWidth }
+  $H = 118
   for ($i = 0; $i -lt $script:history.Count; $i++) {
     $x = $i / 59 * $W
     $y = $H - ($script:history[$i] / $script:totalGB * $H)
@@ -389,6 +410,25 @@ function Update-Chart {
     $fp.Add((New-Object Windows.Point($pts[0].X, 118))) | Out-Null
   }
   $script:chartFill.Points = $fp
+  $cv = $script:chartCanvas
+  if ($cv) {
+    $W = [math]::Max($cv.ActualWidth, 100)
+    $cv.Children.Clear()
+    for ($gi = 1; $gi -lt 8; $gi++) {
+      $gl = New-Object Windows.Shapes.Line
+      $gl.X1 = $gi / 8 * $W; $gl.X2 = $gi / 8 * $W; $gl.Y1 = 0; $gl.Y2 = 118
+      $gl.Stroke = "#2A2A2A"; $gl.StrokeThickness = 1
+      $cv.Children.Add($gl) | Out-Null
+    }
+    for ($gj = 1; $gj -lt 4; $gj++) {
+      $gl2 = New-Object Windows.Shapes.Line
+      $gl2.X1 = 0; $gl2.X2 = $W; $gl2.Y1 = $gj / 4 * 118; $gl2.Y2 = $gj / 4 * 118
+      $gl2.Stroke = "#2A2A2A"; $gl2.StrokeThickness = 1
+      $cv.Children.Add($gl2) | Out-Null
+    }
+    $cv.Children.Add($script:chartFill) | Out-Null
+    $cv.Children.Add($script:chartLine) | Out-Null
+  }
 }
 $script:sampler = New-Object Windows.Threading.DispatcherTimer
 $script:sampler.Interval = [TimeSpan]::FromSeconds(1)
@@ -438,7 +478,7 @@ for ($i = 0; $i -lt $nPages; $i++) {
   $script:navLabels += $tx
 }
 function Save-State($p) {
-  $gi = $p - 2
+  $gi = $p - 1
   if ($gi -ge 0 -and $gi -lt $groups.Count) {
     foreach ($it in $groups[$gi].Items) {
       if ($checkBoxes.ContainsKey($it.Id)) { $it.On = [bool]$checkBoxes[$it.Id].IsChecked }
@@ -455,5 +495,10 @@ function Show-Page($p) {
   }
 }
 $w.Add_Closed({ $script:sampler.Stop() })
+if ($TestPage -ge 0) {
+  Show-Page $TestPage
+  Write-Output ("RENDER-OK page=" + $TestPage)
+  exit 0
+}
 Show-Page 0
 [void]$w.ShowDialog()
