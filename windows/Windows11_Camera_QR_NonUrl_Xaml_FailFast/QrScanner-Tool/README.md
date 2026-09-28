@@ -12,8 +12,7 @@ on plain-text QR payloads on this box (see parent README).
   No live preview stream: `StartPreviewAsync` requires a XAML sink, so the "preview" is a
   ~1 fps still-photo loop over one persistent `MediaCapture` instance (released on close).
   Each capture disposes its stream and the result box is cleared, so re-scans never show stale data.
-- `build.bat` — one-shot compile to `QrCam.dll` (no SDK: no `dotnet`, no VS, no cargo).
-- `build.bat` — one-shot compile to `QrCam.dll` (no SDK: no `dotnet`, no VS, no cargo).
+- `build.ps1` — compilación a `QrCam.dll` (sin SDK: no `dotnet`, no VS, no cargo).
 - `QR-Scan.ps1` — dark WPF window: **Capturar QR** (webcam), **Desde imagen** (file),
   **Copiar**. Self-elevates to STA.
 - `Decode-Qr.ps1` — file-only variant (no camera).
@@ -33,7 +32,7 @@ on plain-text QR payloads on this box (see parent README).
 ## Run
 
 ```powershell
-.\build.bat
+.\build.ps1
 powershell -ExecutionPolicy Bypass -File .\QR-Scan.ps1
 ```
 
