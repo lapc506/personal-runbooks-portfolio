@@ -1,15 +1,15 @@
 # AGENTS.md
 
-This repository follows the PRDS standard from chimeranext/better-toolkits and requires PRs to be reviewable, scoped, and human-approved. The upstream `/toolkits-initial-setup` bootstrap command is the single source of truth for harness setup and local tooling wiring; do not drift into a repo-local fork of that protocol.
+This repository follows the PRDS standard from chimeranext/better-toolkits and requires PRs to be reviewable, scoped, and human-approved. GitHub Issues are the sole tracker of record: use real issue numbers and `Fixes #N`; do not invent Linear-style `TICKET-*` identifiers. The upstream `/toolkits-initial-setup` bootstrap command is the single source of truth for harness setup and local tooling wiring; do not drift into a repo-local fork of that protocol.
 
 ## Required PR behavior
 
 - Use a conventional-commit style title for every PR subject:
   - `feat(scope): add capability`
   - `fix(scope): resolve regression`
-  - `docs(pr): align repo to PRDS`
+  - `docs(pr): align repo to PRDS (#14)`
   - `chore(ci): update templates`
-- Branch names must follow the pattern: `type/ticket-n-slug`
+- Branch names must follow the pattern `type/<issue-number>-slug` with a lowercase numeric GitHub issue number (for example, `feat/13-ai-risk-cards`).
 - Every PR must include the PRDS sections in the body:
   - Summary
   - Tracker
@@ -23,12 +23,12 @@ This repository follows the PRDS standard from chimeranext/better-toolkits and r
 
 ## Required title format
 
-`<type>(<scope>): <outcome> (TICKET-N)`
+`<type>(<scope>): <outcome> (#N)`
 
 Examples:
 
-- `docs(pr): add PRDS template and repo conventions (TICKET-PRDS-1)`
-- `feat(runbooks): add AI-safe debloat launch guidance (TICKET-WS-42)`
+- `docs(pr): use GitHub-native issue tracking (#14)`
+- `feat(winui): add AI risk cards (#13)`
 
 ## Required PR body template
 
@@ -41,9 +41,9 @@ Examples:
 
 ## Tracker
 
-Fixes TICKET-N
+Fixes #N
 
-- Issue: <url>
+- Issue: https://github.com/lapc506/personal-runbooks-portfolio/issues/N
 - OpenSpec: `N/A` or path
 - Cross-repo siblings (if any): link other PR URLs here
 
