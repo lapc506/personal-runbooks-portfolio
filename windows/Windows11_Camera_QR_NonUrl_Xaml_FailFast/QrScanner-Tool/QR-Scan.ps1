@@ -2,9 +2,29 @@
 if ([Threading.Thread]::CurrentThread.GetApartmentState() -ne "STA") {
   powershell -STA -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath @args; exit $LASTEXITCODE
 }
-Add-Type -Path (Join-Path $PSScriptRoot "lib\zxing.dll")
-Add-Type -Path (Join-Path $PSScriptRoot "QrCam.dll")
 Add-Type -AssemblyName PresentationFramework, System.Drawing, System.Windows.Forms
+
+# Auto-bootstrap: descarga zxing.dll y compila QrCam.dll si faltan (repo sin binarios).
+$libDir = Join-Path $PSScriptRoot "lib"
+$zxingDll = Join-Path $libDir "zxing.dll"
+if (-not (Test-Path $zxingDll)) {
+  New-Item -ItemType Directory -Path $libDir -Force | Out-Null
+  $v = (Invoke-RestMethod 'https://api.nuget.org/v3-flatcontainer/zxing.net/index.json').versions |
+    Where-Object { $_ -notmatch '-' } | Select-Object -Last 1
+  $zip = Join-Path $env:TEMP "zxing-$v.zip"
+  Invoke-WebRequest "https://api.nuget.org/v3-flatcontainer/zxing.net/$v/zxing.net.$v.nupkg" -OutFile $zip
+  $dst = Join-Path $env:TEMP "zxingpkg"
+  if (Test-Path $dst) { Remove-Item $dst -Recurse -Force }
+  Expand-Archive $zip $dst -Force
+  Copy-Item "$dst\lib\net40\zxing.dll" $zxingDll -Force
+}
+$qrDll = Join-Path $PSScriptRoot "QrCam.dll"
+if (-not (Test-Path $qrDll)) {
+  & (Join-Path $PSScriptRoot "build.ps1")
+  if ($LASTEXITCODE -ne 0) { throw "build.ps1 falló (exit $LASTEXITCODE)" }
+}
+Add-Type -Path $zxingDll
+Add-Type -Path $qrDll
 
 $xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="QR Scanner" Height="520" Width="700" Background="#1E1E2E" WindowStartupLocation="CenterScreen" FontFamily="Segoe UI Variable Text">

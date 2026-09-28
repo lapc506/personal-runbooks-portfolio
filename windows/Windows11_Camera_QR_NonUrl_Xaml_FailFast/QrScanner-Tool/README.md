@@ -18,9 +18,10 @@ on plain-text QR payloads on this box (see parent README).
 - `Decode-Qr.ps1` — file-only variant (no camera).
 - `Run-Test.ps1` — headless capture→decode→clipboard smoke test.
 
-## Prereqs
+## Prereqs (auto-bootstrap)
 
-- `lib\zxing.dll` — ZXing.Net 0.16.11 `net40` build, fetched once from NuGet (not vendored):
+`QR-Scan.ps1` arranca standalone desde un clon fresco: si faltan `lib\zxing.dll` o `QrCam.dll`,
+los genera solo (NuGet ZXing.Net `net40` + `.\build.ps1` con `csc` in-box). Paso manual equivalente:
   ```powershell
   $v = (Invoke-RestMethod 'https://api.nuget.org/v3-flatcontainer/zxing.net/index.json').versions |
     Where-Object { $_ -notmatch '-' } | Select-Object -Last 1
