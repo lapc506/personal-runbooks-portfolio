@@ -6,9 +6,9 @@
 
 ## Tracker
 
-Fixes TICKET-N
+Fixes #N
 
-- Issue: <url>
+- Issue: https://github.com/lapc506/personal-runbooks-portfolio/issues/N
 - OpenSpec: `N/A` or path
 - Cross-repo siblings (if any): link other PR URLs here
 
