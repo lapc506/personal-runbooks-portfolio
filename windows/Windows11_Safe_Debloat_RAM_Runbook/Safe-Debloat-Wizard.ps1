@@ -234,20 +234,29 @@ function Render-Page($p) {
       $host_.Children.Add($cb) | Out-Null
       $checkBoxes[$it.Id] = $cb
     }
+    $gi = $p - 2
+    $ap1 = New-Object Windows.Controls.Button
+    $ap1.Content = "Aplicar $($g.Title)"; $ap1.Width = 220; $ap1.Margin = "0,12,0,0"
+    $ap1.Style = $w.FindResource("AccentButton")
+    $ap1.Tag = $gi
+    $ap1.Add_Click({ Ask-Confirm ([int]$this.Tag) })
+    $host_.Children.Add($ap1) | Out-Null
+    $script:statusBox = Add-Text $host_ "" 13
   }
 }
-function Get-Selection {
+function Get-Selection($scope = -1) {
   $svcs = @(); $twks = @()
-  foreach ($id in $checkBoxes.Keys) {
-    if ($checkBoxes[$id].IsChecked) {
+  $ids = if ($scope -ge 0) { $groups[$scope].Items | ForEach-Object { $_.Id } } else { $checkBoxes.Keys }
+  foreach ($id in $ids) {
+    if ($checkBoxes.ContainsKey($id) -and $checkBoxes[$id].IsChecked) {
       if ($svcDefs.ContainsKey($id)) { $svcs += $svcDefs[$id] }
       if ($tweakDefs.ContainsKey($id)) { $twks += $tweakDefs[$id] }
     }
   }
   return @{ Services = $svcs; Tweaks = $twks }
 }
-function Ask-Confirm {
-  $sel = Get-Selection
+function Ask-Confirm($scope = -1) {
+  $sel = Get-Selection $scope
   $d = New-Object Windows.Window
   $d.Title = "Confirmar cambios"; $d.Width = 460; $d.Height = 300
   $d.WindowStartupLocation = "CenterOwner"; $d.Owner = $w
@@ -270,11 +279,11 @@ function Ask-Confirm {
   $row.Children.Add($ok) | Out-Null; $row.Children.Add($no) | Out-Null
   $sp.Children.Add($row) | Out-Null
   $d.Content = $sp
-  if ($d.ShowDialog() -eq $true) { Invoke-Apply }
+  if ($d.ShowDialog() -eq $true) { Invoke-Apply $scope }
 }
-function Invoke-Apply {
+function Invoke-Apply($scope = -1) {
   $script:statusBox.Text = "Aplicando..."
-  $sel = Get-Selection
+  $sel = Get-Selection $scope
   @{ Services = $sel.Services; Tweaks = $sel.Tweaks; CreateRestorePoint = $true } |
     ConvertTo-Json -Depth 5 | Set-Content "$env:TEMP\SafeDebloat-Selection.json" -Encoding UTF8
   Remove-Item "$env:TEMP\SafeDebloat-Done.txt" -ErrorAction SilentlyContinue
