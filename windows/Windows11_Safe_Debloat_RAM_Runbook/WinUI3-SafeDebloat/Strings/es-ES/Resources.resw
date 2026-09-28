@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <root>
   <data name="NavOverview.Content" xml:space="preserve"><value>Resumen</value></data>
-  <data name="NavG0.Content" xml:space="preserve"><value>Privacidad</value></data>
-  <data name="NavG1.Content" xml:space="preserve"><value>Explorador</value></data>
-  <data name="NavG2.Content" xml:space="preserve"><value>Barra de tareas</value></data>
-  <data name="NavG3.Content" xml:space="preserve"><value>Búsqueda y Copilot</value></data>
-  <data name="NavG4.Content" xml:space="preserve"><value>Servicios: telemetría</value></data>
-  <data name="NavG5.Content" xml:space="preserve"><value>Servicios: condicional</value></data>
+  <data name="NavG0.Content" xml:space="preserve"><value>AI</value></data>
+  <data name="NavG1.Content" xml:space="preserve"><value>Privacidad</value></data>
+  <data name="NavG2.Content" xml:space="preserve"><value>Explorador</value></data>
+  <data name="NavG3.Content" xml:space="preserve"><value>Barra de tareas</value></data>
+  <data name="NavG4.Content" xml:space="preserve"><value>Búsqueda y Copilot</value></data>
+  <data name="NavG5.Content" xml:space="preserve"><value>Servicios: telemetría</value></data>
+  <data name="NavG6.Content" xml:space="preserve"><value>Servicios: condicional</value></data>
   <data name="PowerUser.Header" xml:space="preserve"><value>Power User</value></data>
   <data name="Welcome.Text" xml:space="preserve"><value>Bienvenido</value></data>
   <data name="Subtitle.Text" xml:space="preserve"><value>Vamos a reducir tu consumo de RAM. Primero medimos tu punto de partida.</value></data>
@@ -31,6 +32,21 @@
   <data name="Dialog.Close" xml:space="preserve"><value>Cancelar</value></data>
   <data name="Status.Exported.Format" xml:space="preserve"><value>Selección exportada ({0} servicios). Aplica con Safe-Debloat-Apply.ps1 (elevado).</value></data>
   <data name="Services.Prefix" xml:space="preserve"><value>Servicios: </value></data>
+  <data name="A_Copilot.Label" xml:space="preserve"><value>Desactivar Copilot</value></data>
+  <data name="A_Copilot.Desc" xml:space="preserve"><value>Quita el asistente de IA integrado y su botón en búsqueda/Inicio.</value></data>
+  <data name="A_Copilot.Tip" xml:space="preserve"><value>TurnOffWindowsCopilot=1 + ShowCopilotButton=0.</value></data>
+  <data name="A_Copilot.Impl" xml:space="preserve"><value>Se elimina el panel y el botón de Copilot; la búsqueda local sigue disponible, pero la IA del sistema deja de estar activa.</value></data>
+  <data name="A_Copilot.Risk" xml:space="preserve"><value>Reversible. Se pierde la ayuda impulsada por IA, pero no rompe la estabilidad del sistema.</value></data>
+  <data name="A_Recall.Label" xml:space="preserve"><value>Desactivar Recall</value></data>
+  <data name="A_Recall.Desc" xml:space="preserve"><value>Desactiva Historial/Recall de Windows y su análisis contextual de IA.</value></data>
+  <data name="A_Recall.Tip" xml:space="preserve"><value>DisableRecall / WindowsAI policy.</value></data>
+  <data name="A_Recall.Impl" xml:space="preserve"><value>Se apaga la funcionalidad de Recordar actividad reciente y contexto con IA. Útil si quieres evitar ese historial.</value></data>
+  <data name="A_Recall.Risk" xml:space="preserve"><value>Funcional: se pierde la memoria contextual de Recall; es reversible pero cambia la experiencia de productividad.</value></data>
+  <data name="A_ClickToDo.Label" xml:space="preserve"><value>Desactivar Click to Do</value></data>
+  <data name="A_ClickToDo.Desc" xml:space="preserve"><value>Apaga análisis de texto/imagen de IA en Click to Do.</value></data>
+  <data name="A_ClickToDo.Tip" xml:space="preserve"><value>DisableClickToDo.</value></data>
+  <data name="A_ClickToDo.Impl" xml:space="preserve"><value>Desactiva la IA del sistema para análisis de texto e imagen; es útil si no utilizas esas funciones.</value></data>
+  <data name="A_ClickToDo.Risk" xml:space="preserve"><value>Riesgo bajo: se quitan funciones de IA, no se rompe Windows. Reversible.</value></data>
   <data name="T_Ads.Label" xml:space="preserve"><value>Quitar anuncios personalizados de Windows</value></data>
   <data name="T_Ads.Desc" xml:space="preserve"><value>Quita el ID de publicidad y las experiencias a medida de Windows.</value></data>
   <data name="T_Ads.Tip" xml:space="preserve"><value>AdvertisingInfo\Enabled=0 + TailoredExperiences=0.</value></data>
@@ -66,6 +82,9 @@
   <data name="Toast.ErrorMsg" xml:space="preserve"><value>Error al exportar la selección.</value></data>
   <data name="Info.Impl.Title" xml:space="preserve"><value>Implicaciones</value></data>
   <data name="Info.Risk.Title" xml:space="preserve"><value>Riesgos</value></data>
+  <data name="Info.Risk.Reversible" xml:space="preserve"><value>Reversible</value></data>
+  <data name="Info.Risk.Functional" xml:space="preserve"><value>Funcional</value></data>
+  <data name="Info.Risk.LowRisk" xml:space="preserve"><value>Riesgo bajo</value></data>
   <data name="T_Ads.Impl" xml:space="preserve"><value>Dejas de ver anuncios basados en lo que haces en Windows.</value></data>
   <data name="T_Explorer.Impl" xml:space="preserve"><value>Verás con qué terminan los archivos (.exe, .txt), verás los ocultos, y el Explorador abrirá en Este equipo.</value></data>
   <data name="T_Taskbar.Impl" xml:space="preserve"><value>El botón Inicio y los iconos vuelven a la izquierda; desaparecen Widgets y el botón de Task View.</value></data>
@@ -75,13 +94,13 @@
   <data name="S_Maps.Impl" xml:space="preserve"><value>La app Mapas y todo lo que use tu ubicación (clima, buscar mi dispositivo) deja de funcionar.</value></data>
   <data name="S_SysMain.Impl" xml:space="preserve"><value>Windows deja de adivinar qué apps vas a abrir para tenerlas listas (usa menos RAM en reposo).</value></data>
   <data name="S_Misc.Impl" xml:space="preserve"><value>Se apagan 4 ayudantes: el que avisa de programas incompatibles, el que repara accesos directos, la red antigua de oficina y el medidor de datos.</value></data>
-  <data name="T_Ads.Risk" xml:space="preserve"><value>Ninguno.</value></data>
-  <data name="T_Explorer.Risk" xml:space="preserve"><value>Verás archivos del sistema: no borres ni muevas lo que no reconozcas.</value></data>
-  <data name="T_Taskbar.Risk" xml:space="preserve"><value>Ninguno.</value></data>
-  <data name="T_Search.Risk" xml:space="preserve"><value>Si usas Copilot o las sugerencias web del buscador, los pierdes.</value></data>
-  <data name="S_Telemetry.Risk" xml:space="preserve"><value>OMEN/HP y GeForce Experience pueden perder funciones; la app de comentarios (Feedback Hub) se queda sin datos.</value></data>
-  <data name="S_Xbox.Risk" xml:space="preserve"><value>Si juegas o grabas pantalla con Game Bar, no funcionará.</value></data>
-  <data name="S_Maps.Risk" xml:space="preserve"><value>Mapas, el clima por ubicación y Buscar mi dispositivo fallan.</value></data>
-  <data name="S_SysMain.Risk" xml:space="preserve"><value>Con disco duro mecánico (HDD) los programas abren más lento. Con SSD casi no se nota.</value></data>
-  <data name="S_Misc.Risk" xml:space="preserve"><value>No verás avisos al instalar programas viejos; algún acceso directo puede romperse; el contador de datos queda vacío.</value></data>
+  <data name="T_Ads.Risk" xml:space="preserve"><value>Ninguno. Es reversible y no afecta la estabilidad del sistema; solo deja de personalizar anuncios y sugerencias.</value></data>
+  <data name="T_Explorer.Risk" xml:space="preserve"><value>Verás archivos del sistema: no borres ni muevas lo que no reconozcas. El riesgo es visual y de seguridad, no de estabilidad del sistema.</value></data>
+  <data name="T_Taskbar.Risk" xml:space="preserve"><value>Ninguno. Es solo un cambio de apariencia y disposición de la barra; es reversible.</value></data>
+  <data name="T_Search.Risk" xml:space="preserve"><value>Si usas Copilot o las sugerencias web del buscador, los pierdes. El resto de Windows sigue funcionando.</value></data>
+  <data name="S_Telemetry.Risk" xml:space="preserve"><value>OMEN/HP y GeForce Experience pueden perder funciones; la app de comentarios (Feedback Hub) se queda sin datos. No suele romper Windows, pero sí quita diagnósticos y OEM telemetry.</value></data>
+  <data name="S_Xbox.Risk" xml:space="preserve"><value>Si juegas o grabas pantalla con Game Bar, no funcionará. No suele romper Windows, pero se pierde la experiencia de Xbox/Game Bar.</value></data>
+  <data name="S_Maps.Risk" xml:space="preserve"><value>Mapas, el clima por ubicación y Buscar mi dispositivo fallan. Es un cambio funcional y reversible, no un fallo del sistema.</value></data>
+  <data name="S_SysMain.Risk" xml:space="preserve"><value>Con disco duro mecánico (HDD) los programas abren más lento. Con SSD casi no se nota. El seguimiento es reversible y el riesgo es de rendimiento, no de estabilidad.</value></data>
+  <data name="S_Misc.Risk" xml:space="preserve"><value>No verás avisos al instalar programas viejos; algún acceso directo puede romperse; el contador de datos queda vacío. Riesgo bajo: es funcional y reversible.</value></data>
 </root>

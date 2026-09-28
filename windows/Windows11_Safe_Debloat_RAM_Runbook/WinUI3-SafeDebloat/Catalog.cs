@@ -30,6 +30,24 @@ public static class Catalog
 {
     public static readonly List<GroupDef> Groups = new()
     {
+        new GroupDef { Title = "AI", Glyph = "\uE7B5", Items = new()
+        {
+            new TweackDef { Id = "A_Copilot", Severity = "Warning", Label = "Desactivar Copilot",
+                Desc = "Quita el asistente de IA integrado y su botón en búsqueda/Inicio.",
+                Tip = "TurnOffWindowsCopilot=1 + ShowCopilotButton=0.", On = true,
+                RegNames = new[] { "TurnOffWindowsCopilot", "ShowCopilotButton" },
+                ScriptFile = "Scripts\\A_Copilot.ps1" },
+            new TweackDef { Id = "A_Recall", Severity = "Warning", Label = "Desactivar Recall",
+                Desc = "Desactiva el historial/contexto de IA de Windows Recall.",
+                Tip = "DisableRecall / WindowsAI policy.", On = false,
+                RegNames = new[] { "DisableRecall" },
+                ScriptFile = "Scripts\\A_Recall.ps1" },
+            new TweackDef { Id = "A_ClickToDo", Severity = "Warning", Label = "Desactivar Click to Do",
+                Desc = "Apaga la IA para análisis de texto e imagen.",
+                Tip = "DisableClickToDo.", On = false,
+                RegNames = new[] { "DisableClickToDo" },
+                ScriptFile = "Scripts\\A_ClickToDo.ps1" },
+        } },
         new GroupDef { Title = "Privacidad", Glyph = "\uE72E", Items = new()
         {
             new TweackDef { Id = "T_Ads", Label = "Sin ID de publicidad ni experiencias a medida",
