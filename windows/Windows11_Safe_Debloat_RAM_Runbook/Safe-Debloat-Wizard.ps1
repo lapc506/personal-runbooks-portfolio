@@ -81,25 +81,25 @@ $xaml = @"
 <Setter Property="Foreground" Value="White"/>
 <Setter Property="BorderBrush" Value="#0078D4"/>
 </Style>
-<Style TargetType="CheckBox">
-<Setter Property="Margin" Value="0,5,0,5"/>
+<Style x:Key="ToggleSwitch" TargetType="CheckBox">
+<Setter Property="Margin" Value="0,6,0,6"/>
 <Setter Property="Template">
 <Setter.Value>
 <ControlTemplate TargetType="CheckBox">
 <StackPanel Orientation="Horizontal">
-<Border Name="box" Width="20" Height="20" CornerRadius="4" Background="White" BorderBrush="#605E5C" BorderThickness="1.5">
-<Path Name="glyph" Data="M 4 10 L 9 15 L 16 5" Stroke="White" StrokeThickness="2.5" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+<Border Name="track" Width="52" Height="28" CornerRadius="14" Background="#8A8A8A">
+<Ellipse Name="thumb" Width="20" Height="20" Fill="White" HorizontalAlignment="Left" Margin="4,0,0,0"/>
 </Border>
-<ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
+<ContentPresenter Margin="10,0,0,0" VerticalAlignment="Center"/>
 </StackPanel>
 <ControlTemplate.Triggers>
 <Trigger Property="IsChecked" Value="True">
-<Setter TargetName="box" Property="Background" Value="#0078D4"/>
-<Setter TargetName="box" Property="BorderBrush" Value="#0078D4"/>
-<Setter TargetName="glyph" Property="Visibility" Value="Visible"/>
+<Setter TargetName="track" Property="Background" Value="#0078D4"/>
+<Setter TargetName="thumb" Property="HorizontalAlignment" Value="Right"/>
+<Setter TargetName="thumb" Property="Margin" Value="0,0,4,0"/>
 </Trigger>
 <Trigger Property="IsMouseOver" Value="True">
-<Setter TargetName="box" Property="BorderBrush" Value="#0078D4"/>
+<Setter TargetName="track" Property="Opacity" Value="0.85"/>
 </Trigger>
 </ControlTemplate.Triggers>
 </ControlTemplate>
@@ -153,12 +153,27 @@ function Render-Page($p) {
   $host_.Children.Clear()
   $h = New-Object Windows.Controls.TextBlock
   if ($p -eq 0) {
-    $h.Text = "Paso 1 — Línea base de RAM"; $h.FontSize = 16; $h.FontWeight = "Bold"
-    $host_.Children.Add($h) | Out-Null
-    $b = New-Object Windows.Controls.TextBlock
-    $b.Text = "Total: $($script:ram0.Total) GB | En uso: $($script:ram0.Used) GB (cierra apps y repite para comparar)"
-    $b.Margin = "0,10,0,0"; $b.TextWrapping = "Wrap"
-    $host_.Children.Add($b) | Out-Null
+    $t0 = New-Object Windows.Controls.TextBlock
+    $t0.Text = "Bienvenido"; $t0.FontSize = 24; $t0.FontWeight = "Bold"
+    $host_.Children.Add($t0) | Out-Null
+    $t1 = New-Object Windows.Controls.TextBlock
+    $t1.Text = "Vamos a reducir tu consumo de RAM. Primero medimos tu punto de partida (cierra apps y repite para comparar)."
+    $t1.Margin = "0,4,0,10"; $t1.TextWrapping = "Wrap"; $t1.Foreground = "#555555"
+    $host_.Children.Add($t1) | Out-Null
+    $pct = [math]::Round($script:ram0.Used / $script:ram0.Total * 100)
+    $big = New-Object Windows.Controls.TextBlock
+    $big.Text = "Memoria: $($script:ram0.Used)/$($script:ram0.Total) GB ($pct%)"
+    $big.FontSize = 18; $big.FontWeight = "Bold"; $big.Margin = "0,0,0,6"
+    $host_.Children.Add($big) | Out-Null
+    $pb = New-Object Windows.Controls.ProgressBar
+    $pb.Minimum = 0; $pb.Maximum = 100; $pb.Value = $pct; $pb.Height = 18
+    $host_.Children.Add($pb) | Out-Null
+    $top = Get-Process | Sort-Object WorkingSet64 -Descending | Select-Object -First 5 |
+      ForEach-Object { "{0}: {1} MB" -f $_.ProcessName, [math]::Round($_.WorkingSet64 / 1MB) }
+    $tt = New-Object Windows.Controls.TextBlock
+    $tt.Text = "Top RAM ahora:`n" + ($top -join "`n")
+    $tt.Margin = "0,10,0,0"; $tt.FontFamily = "Consolas"; $tt.Foreground = "#333333"
+    $host_.Children.Add($tt) | Out-Null
   } elseif ($p -eq ($nPhases - 2)) {
     $h.Text = "Confirmar"; $h.FontSize = 16; $h.FontWeight = "Bold"
     $host_.Children.Add($h) | Out-Null
@@ -192,6 +207,7 @@ function Render-Page($p) {
       $cb = New-Object Windows.Controls.CheckBox
       $cb.Content = $it.Label; $cb.ToolTip = $it.Tip; $cb.IsChecked = [bool]$it.On
       $cb.Tag = $it.Id
+      $cb.Style = $w.FindResource("ToggleSwitch")
       $host_.Children.Add($cb) | Out-Null
       $checkBoxes[$it.Id] = $cb
     }
