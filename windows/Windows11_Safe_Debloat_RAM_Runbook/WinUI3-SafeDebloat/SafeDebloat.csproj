@@ -11,10 +11,23 @@
     <UseWinUI>true</UseWinUI>
     <EnableMsixTooling>true</EnableMsixTooling>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <Nullable>enable</Nullable>
+    <DefaultLanguage>es-ES</DefaultLanguage>
   </PropertyGroup>
   <ItemGroup>
     <!-- Pin exact version after first restore on a machine with the workload. -->
     <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.8.*" />
-    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.22621.756" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.4654" />
+    <!-- IMPORTADO (no replicado): Labs DataTable para el Overview. Feed: CommunityToolkit-Labs. -->
+    <PackageReference Include="CommunityToolkit.Labs.WinUI.Controls.DataTable" Version="0.1.260915-build.2673" />
+    <!-- IMPORTADO (no replicado): SettingsCards estables para las páginas de categoría. -->
+    <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
+    <PackageReference Include="System.Management" Version="9.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Scripts independientes: viajan junto al exe y se LEEN en runtime. -->
+    <Content Include="Scripts\*.ps1">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>

@@ -1,0 +1,86 @@
+<Page
+    x:Class="SafeDebloat.OverviewPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:labs="using:CommunityToolkit.WinUI.Controls">
+
+    <!-- Patrón oficial Labs (DataTableSample): DataTable SOLO es el header del ListView;
+         cada fila es un DataRow dentro del ItemTemplate. Textos vía x:Uid (Strings/*.resw). -->
+    <Grid Padding="12" RowSpacing="4">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" x:Uid="Welcome" FontSize="24" FontWeight="Bold" Text="Bienvenido" />
+        <TextBlock Grid.Row="1" x:Uid="Subtitle" Foreground="Gray" TextWrapping="Wrap"
+                   Text="Vamos a reducir tu consumo de RAM. Primero medimos tu punto de partida." />
+        <TextBlock Grid.Row="2" x:Name="RamSummary" FontSize="18" FontWeight="SemiBold" />
+        <ProgressBar Grid.Row="3" x:Name="RamBar" Maximum="100" Height="18" Margin="0,4,0,8" />
+        <TextBlock Grid.Row="4" x:Uid="ChartLabel" FontWeight="SemiBold" Text="Últimos 60 s (en vivo):" />
+        <Canvas Grid.Row="5" x:Name="ChartCanvas" Height="120">
+            <Canvas.Background>
+                <SolidColorBrush Color="#11111B" />
+            </Canvas.Background>
+        </Canvas>
+        <Grid Grid.Row="6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition />
+                <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" x:Uid="TimePast" Foreground="Gray" Text="60 s" />
+            <TextBlock Grid.Column="1" x:Uid="TimeNow" Foreground="Gray" HorizontalAlignment="Right" Text="ahora" />
+        </Grid>
+        <TextBlock Grid.Row="7" x:Uid="Helper" Foreground="Gray" TextWrapping="Wrap" FontSize="12"
+                   Text="Nuclear = binario bajo C:\Windows (heurística por ruta). Desactivar un nuclear ROMPE Windows; los no nucleares son los candidatos a revisar." />
+
+        <ListView Grid.Row="8" x:Name="ProcList"
+                  ScrollViewer.HorizontalScrollMode="Enabled"
+                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
+            <ListView.Header>
+                <!-- IMPORTADO (no replicado): CommunityToolkit Labs DataTable.
+                     Feed: CommunityToolkit-Labs. Paquete: CommunityToolkit.Labs.WinUI.Controls.DataTable. -->
+                <labs:DataTable Margin="12,0,0,0">
+                    <labs:DataColumn x:Uid="ColPid" Content="PID" DesiredWidth="80" />
+                    <labs:DataColumn x:Uid="ColName" Content="Nombre" MinWidth="120" CanResize="True" />
+                    <labs:DataColumn x:Uid="ColSvc" Content="Servicios" DesiredWidth="220" />
+                    <labs:DataColumn x:Uid="ColRam" Content="RAM MB" DesiredWidth="90" />
+                    <labs:DataColumn x:Uid="ColNuclear" Content="Nuclear" DesiredWidth="80" />
+                    <labs:DataColumn x:Uid="ColRuta" Content="Ruta" DesiredWidth="340" />
+                </labs:DataTable>
+            </ListView.Header>
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <labs:DataRow>
+                        <TextBlock VerticalAlignment="Center" Text="{Binding Pid}" />
+                        <TextBlock VerticalAlignment="Center" Text="{Binding Name}" />
+                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding Servicios}" />
+                        <TextBlock VerticalAlignment="Center" Text="{Binding RamMb}" />
+                        <TextBlock VerticalAlignment="Center" Text="{Binding Nuclear}" />
+                        <TextBlock VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding Ruta}" />
+                    </labs:DataRow>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+            <ListView.ItemContainerStyle>
+                <Style BasedOn="{StaticResource DefaultListViewItemStyle}" TargetType="ListViewItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                </Style>
+            </ListView.ItemContainerStyle>
+            <ListView.GroupStyle>
+                <GroupStyle>
+                    <GroupStyle.HeaderTemplate>
+                        <DataTemplate>
+                            <TextBlock FontSize="15" FontWeight="SemiBold" Margin="0,8,0,4" Text="{Binding Title}" />
+                        </DataTemplate>
+                    </GroupStyle.HeaderTemplate>
+                </GroupStyle>
+            </ListView.GroupStyle>
+        </ListView>
+    </Grid>
+</Page>

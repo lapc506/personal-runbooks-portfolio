@@ -1,0 +1,9 @@
+<Page
+    x:Class="SafeDebloat.CategoryPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer Padding="12">
+        <StackPanel x:Name="Host" Spacing="8" />
+    </ScrollViewer>
+</Page>

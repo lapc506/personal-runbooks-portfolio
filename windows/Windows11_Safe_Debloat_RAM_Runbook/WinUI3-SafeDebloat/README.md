@@ -18,8 +18,9 @@ dotnet build -c Release
 
 ## TODO before it compiles clean
 
-- Verify CommunityToolkit **Labs DataTable** package id for the Procesos grid
-  (`CommunityToolkit.Labs.WinUI.DataTable` — unconfirmed).
+- [x] CommunityToolkit **Labs DataTable** importado al Overview (`OverviewPage.xaml`):
+  `CommunityToolkit.Labs.WinUI.Controls.DataTable 0.1.260915-build.2673` desde el feed
+  `CommunityToolkit-Labs` (ver `NuGet.config`). Namespace `labs="using:CommunityToolkit.WinUI.Controls"`.
 - Port pages + worker logic (`Safe-Debloat-Apply.ps1` semantics: restore point, snapshot,
   rollback) to MVVM (CommunityToolkit.Mvvm).
 - `ContentDialog` always sets `XamlRoot` (see `ConfirmAsync` — the #1 WinUI 3 pitfall).

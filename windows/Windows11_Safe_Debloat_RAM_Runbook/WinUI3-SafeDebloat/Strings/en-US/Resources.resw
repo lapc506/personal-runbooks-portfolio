@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="NavOverview.Content" xml:space="preserve"><value>Overview</value></data>
+  <data name="NavG0.Content" xml:space="preserve"><value>Privacy</value></data>
+  <data name="NavG1.Content" xml:space="preserve"><value>Explorer</value></data>
+  <data name="NavG2.Content" xml:space="preserve"><value>Taskbar</value></data>
+  <data name="NavG3.Content" xml:space="preserve"><value>Search and Copilot</value></data>
+  <data name="NavG4.Content" xml:space="preserve"><value>Services: telemetry</value></data>
+  <data name="NavG5.Content" xml:space="preserve"><value>Services: conditional</value></data>
+  <data name="PowerUser.Header" xml:space="preserve"><value>Power User</value></data>
+  <data name="Welcome.Text" xml:space="preserve"><value>Welcome</value></data>
+  <data name="Subtitle.Text" xml:space="preserve"><value>Let's cut your RAM usage. First we measure your baseline.</value></data>
+  <data name="ChartLabel.Text" xml:space="preserve"><value>Last 60 s (live):</value></data>
+  <data name="TimePast.Text" xml:space="preserve"><value>60 s</value></data>
+  <data name="TimeNow.Text" xml:space="preserve"><value>now</value></data>
+  <data name="Helper.Text" xml:space="preserve"><value>Nuclear = binary under C:\Windows (path heuristic). Disabling a nuclear service BREAKS Windows; non-nuclear ones are the review candidates.</value></data>
+  <data name="ColPid.Content" xml:space="preserve"><value>PID</value></data>
+  <data name="ColName.Content" xml:space="preserve"><value>Name</value></data>
+  <data name="ColSvc.Content" xml:space="preserve"><value>Services</value></data>
+  <data name="ColRam.Content" xml:space="preserve"><value>RAM MB</value></data>
+  <data name="ColNuclear.Content" xml:space="preserve"><value>Nuclear</value></data>
+  <data name="ColRuta.Content" xml:space="preserve"><value>Path</value></data>
+  <data name="Ram.Summary.Format" xml:space="preserve"><value>Memory: {0:F2}/{1:F1} GB</value></data>
+  <data name="Ram.Unknown" xml:space="preserve"><value>Memory: n/a</value></data>
+  <data name="Group.Nuclear.Format" xml:space="preserve"><value>Nuclear — do NOT disable, they break Windows ({0})</value></data>
+  <data name="Group.Resto.Format" xml:space="preserve"><value>Non-nuclear — review candidates ({0})</value></data>
+  <data name="Apply.Format" xml:space="preserve"><value>Apply {0}</value></data>
+  <data name="Confirm.Format" xml:space="preserve"><value>{0} services in {1} will be disabled. A restore point and Rollback-Debloat.ps1 are created before applying. Continue?</value></data>
+  <data name="Dialog.Title" xml:space="preserve"><value>Confirm changes</value></data>
+  <data name="Dialog.Primary" xml:space="preserve"><value>Apply</value></data>
+  <data name="Dialog.Close" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Status.Exported.Format" xml:space="preserve"><value>Selection exported ({0} services). Apply with Safe-Debloat-Apply.ps1 (elevated).</value></data>
+  <data name="Services.Prefix" xml:space="preserve"><value>Services: </value></data>
+  <data name="T_Ads.Label" xml:space="preserve"><value>Remove personalized Windows ads</value></data>
+  <data name="T_Ads.Desc" xml:space="preserve"><value>Removes the advertising ID and Windows tailored experiences.</value></data>
+  <data name="T_Ads.Tip" xml:space="preserve"><value>AdvertisingInfo\Enabled=0 + TailoredExperiences=0.</value></data>
+  <data name="T_Explorer.Label" xml:space="preserve"><value>Show extensions and hidden files, open in This PC</value></data>
+  <data name="T_Explorer.Desc" xml:space="preserve"><value>Shows extensions and hidden files; opens in This PC.</value></data>
+  <data name="T_Explorer.Tip" xml:space="preserve"><value>HideFileExt=0, Hidden=1, LaunchTo=1.</value></data>
+  <data name="T_Taskbar.Label" xml:space="preserve"><value>Use the classic left bar without Widgets</value></data>
+  <data name="T_Taskbar.Desc" xml:space="preserve"><value>Classic alignment without distractions.</value></data>
+  <data name="T_Taskbar.Tip" xml:space="preserve"><value>TaskbarAl=0, TaskbarDa=0, ShowTaskViewButton=0.</value></data>
+  <data name="T_Search.Label" xml:space="preserve"><value>Search locally only, without Bing or Copilot</value></data>
+  <data name="T_Search.Desc" xml:space="preserve"><value>Local search only, no assistant.</value></data>
+  <data name="T_Search.Tip" xml:space="preserve"><value>DisableSearchBoxSuggestions=1, TurnOffWindowsCopilot=1, ShowCopilotButton=0.</value></data>
+  <data name="S_Telemetry.Label" xml:space="preserve"><value>Turn off telemetry and HP/NVIDIA background programs</value></data>
+  <data name="S_Telemetry.Desc" xml:space="preserve"><value>DiagTrack, dmwappushservice, RetailDemo, InventorySvc, nvagent, HP.</value></data>
+  <data name="S_Telemetry.Tip" xml:space="preserve"><value>No dependents on Home.</value></data>
+  <data name="S_Xbox.Label" xml:space="preserve"><value>Turn off Xbox and Game Bar (only if you don't game)</value></data>
+  <data name="S_Xbox.Desc" xml:space="preserve"><value>Only if you don't game.</value></data>
+  <data name="S_Xbox.Tip" xml:space="preserve"><value>XblAuthManager, XblGameSave, XboxGipSvc, XboxNetApiSvc.</value></data>
+  <data name="S_Maps.Label" xml:space="preserve"><value>Turn off Maps and location</value></data>
+  <data name="S_Maps.Desc" xml:space="preserve"><value>Only if you don't use them.</value></data>
+  <data name="S_Maps.Tip" xml:space="preserve"><value>MapsBroker + lfsvc.</value></data>
+  <data name="S_SysMain.Label" xml:space="preserve"><value>Turn off app preloading into memory (SysMain)</value></data>
+  <data name="S_SysMain.Desc" xml:space="preserve"><value>Saves RAM (measure before/after).</value></data>
+  <data name="S_SysMain.Tip" xml:space="preserve"><value>Slows down opens on HDD.</value></data>
+  <data name="S_Misc.Label" xml:space="preserve"><value>Turn off background helpers (compatibility, links, network, data)</value></data>
+  <data name="S_Misc.Desc" xml:space="preserve"><value>Low risk.</value></data>
+  <data name="S_Misc.Tip" xml:space="preserve"><value>Compatibility and minor networking.</value></data>
+  <data name="Toast.OkTitle" xml:space="preserve"><value>Safe Debloat</value></data>
+  <data name="Toast.OkMsg" xml:space="preserve"><value>Changes exported ({0} services).</value></data>
+  <data name="Toast.NothingTitle" xml:space="preserve"><value>Safe Debloat</value></data>
+  <data name="Toast.NothingMsg" xml:space="preserve"><value>No changes: nothing selected.</value></data>
+  <data name="Toast.ErrorTitle" xml:space="preserve"><value>Safe Debloat</value></data>
+  <data name="Toast.ErrorMsg" xml:space="preserve"><value>Failed to export the selection.</value></data>
+  <data name="Info.Impl.Title" xml:space="preserve"><value>Implications</value></data>
+  <data name="Info.Risk.Title" xml:space="preserve"><value>Risks</value></data>
+  <data name="T_Ads.Impl" xml:space="preserve"><value>You stop seeing ads based on what you do in Windows.</value></data>
+  <data name="T_Explorer.Impl" xml:space="preserve"><value>You will see file endings (.exe, .txt) and hidden files, and Explorer opens in This PC.</value></data>
+  <data name="T_Taskbar.Impl" xml:space="preserve"><value>Start and icons go back to the left; Widgets and the Task View button disappear.</value></data>
+  <data name="T_Search.Impl" xml:space="preserve"><value>Searching in Start only shows your files and apps; web results and Copilot disappear.</value></data>
+  <data name="S_Telemetry.Impl" xml:space="preserve"><value>Windows and HP/NVIDIA programs stop running and sending data in the background.</value></data>
+  <data name="S_Xbox.Impl" xml:space="preserve"><value>Game Bar (Win+G), game captures and Xbox services disappear.</value></data>
+  <data name="S_Maps.Impl" xml:space="preserve"><value>The Maps app and anything using your location (weather, find my device) stops working.</value></data>
+  <data name="S_SysMain.Impl" xml:space="preserve"><value>Windows stops guessing which apps you'll open to keep them ready (less idle RAM).</value></data>
+  <data name="S_Misc.Impl" xml:space="preserve"><value>4 helpers go off: the one warning about incompatible programs, the shortcut fixer, legacy office networking and the data meter.</value></data>
+  <data name="T_Ads.Risk" xml:space="preserve"><value>None.</value></data>
+  <data name="T_Explorer.Risk" xml:space="preserve"><value>You will see system files: don't delete or move what you don't recognize.</value></data>
+  <data name="T_Taskbar.Risk" xml:space="preserve"><value>None.</value></data>
+  <data name="T_Search.Risk" xml:space="preserve"><value>If you use Copilot or the search web suggestions, you lose them.</value></data>
+  <data name="S_Telemetry.Risk" xml:space="preserve"><value>OMEN/HP and GeForce Experience may lose features; the Feedback Hub app gets no data.</value></data>
+  <data name="S_Xbox.Risk" xml:space="preserve"><value>If you game or record with Game Bar, it won't work.</value></data>
+  <data name="S_Maps.Risk" xml:space="preserve"><value>Maps, location weather and Find my device fail.</value></data>
+  <data name="S_SysMain.Risk" xml:space="preserve"><value>On spinning hard drives (HDD) programs open slower. On SSD it's barely noticeable.</value></data>
+  <data name="S_Misc.Risk" xml:space="preserve"><value>You won't see warnings installing old programs; some shortcuts may break; the data counter stays empty.</value></data>
+</root>

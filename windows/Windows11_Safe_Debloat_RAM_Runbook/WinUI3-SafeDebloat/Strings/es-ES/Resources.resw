@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <data name="NavOverview.Content" xml:space="preserve"><value>Resumen</value></data>
+  <data name="NavG0.Content" xml:space="preserve"><value>Privacidad</value></data>
+  <data name="NavG1.Content" xml:space="preserve"><value>Explorador</value></data>
+  <data name="NavG2.Content" xml:space="preserve"><value>Barra de tareas</value></data>
+  <data name="NavG3.Content" xml:space="preserve"><value>Búsqueda y Copilot</value></data>
+  <data name="NavG4.Content" xml:space="preserve"><value>Servicios: telemetría</value></data>
+  <data name="NavG5.Content" xml:space="preserve"><value>Servicios: condicional</value></data>
+  <data name="PowerUser.Header" xml:space="preserve"><value>Power User</value></data>
+  <data name="Welcome.Text" xml:space="preserve"><value>Bienvenido</value></data>
+  <data name="Subtitle.Text" xml:space="preserve"><value>Vamos a reducir tu consumo de RAM. Primero medimos tu punto de partida.</value></data>
+  <data name="ChartLabel.Text" xml:space="preserve"><value>Últimos 60 s (en vivo):</value></data>
+  <data name="TimePast.Text" xml:space="preserve"><value>60 s</value></data>
+  <data name="TimeNow.Text" xml:space="preserve"><value>ahora</value></data>
+  <data name="Helper.Text" xml:space="preserve"><value>Nuclear = binario bajo C:\Windows (heurística por ruta). Desactivar un nuclear ROMPE Windows; los no nucleares son los candidatos a revisar.</value></data>
+  <data name="ColPid.Content" xml:space="preserve"><value>PID</value></data>
+  <data name="ColName.Content" xml:space="preserve"><value>Nombre</value></data>
+  <data name="ColSvc.Content" xml:space="preserve"><value>Servicios</value></data>
+  <data name="ColRam.Content" xml:space="preserve"><value>RAM MB</value></data>
+  <data name="ColNuclear.Content" xml:space="preserve"><value>Nuclear</value></data>
+  <data name="ColRuta.Content" xml:space="preserve"><value>Ruta</value></data>
+  <data name="Ram.Summary.Format" xml:space="preserve"><value>Memoria: {0:F2}/{1:F1} GB</value></data>
+  <data name="Ram.Unknown" xml:space="preserve"><value>Memoria: n/d</value></data>
+  <data name="Group.Nuclear.Format" xml:space="preserve"><value>Nucleares — NO desactivar, rompen Windows ({0})</value></data>
+  <data name="Group.Resto.Format" xml:space="preserve"><value>No nucleares — candidatos a revisar ({0})</value></data>
+  <data name="Apply.Format" xml:space="preserve"><value>Aplicar {0}</value></data>
+  <data name="Confirm.Format" xml:space="preserve"><value>Se desactivarán {0} servicios en {1}. Se crea restore point y Rollback-Debloat.ps1 antes de aplicar. ¿Continuar?</value></data>
+  <data name="Dialog.Title" xml:space="preserve"><value>Confirmar cambios</value></data>
+  <data name="Dialog.Primary" xml:space="preserve"><value>Aplicar</value></data>
+  <data name="Dialog.Close" xml:space="preserve"><value>Cancelar</value></data>
+  <data name="Status.Exported.Format" xml:space="preserve"><value>Selección exportada ({0} servicios). Aplica con Safe-Debloat-Apply.ps1 (elevado).</value></data>
+  <data name="Services.Prefix" xml:space="preserve"><value>Servicios: </value></data>
+  <data name="T_Ads.Label" xml:space="preserve"><value>Quitar anuncios personalizados de Windows</value></data>
+  <data name="T_Ads.Desc" xml:space="preserve"><value>Quita el ID de publicidad y las experiencias a medida de Windows.</value></data>
+  <data name="T_Ads.Tip" xml:space="preserve"><value>AdvertisingInfo\Enabled=0 + TailoredExperiences=0.</value></data>
+  <data name="T_Explorer.Label" xml:space="preserve"><value>Mostrar extensiones y archivos ocultos, abrir en Este equipo</value></data>
+  <data name="T_Explorer.Desc" xml:space="preserve"><value>Muestra extensiones y archivos ocultos; abre en Este equipo.</value></data>
+  <data name="T_Explorer.Tip" xml:space="preserve"><value>HideFileExt=0, Hidden=1, LaunchTo=1.</value></data>
+  <data name="T_Taskbar.Label" xml:space="preserve"><value>Poner la barra clásica a la izquierda, sin Widgets</value></data>
+  <data name="T_Taskbar.Desc" xml:space="preserve"><value>Alineación clásica sin distracciones.</value></data>
+  <data name="T_Taskbar.Tip" xml:space="preserve"><value>TaskbarAl=0, TaskbarDa=0, ShowTaskViewButton=0.</value></data>
+  <data name="T_Search.Label" xml:space="preserve"><value>Buscar solo en local, sin Bing ni Copilot</value></data>
+  <data name="T_Search.Desc" xml:space="preserve"><value>Búsqueda local solamente, sin asistente.</value></data>
+  <data name="T_Search.Tip" xml:space="preserve"><value>DisableSearchBoxSuggestions=1, TurnOffWindowsCopilot=1, ShowCopilotButton=0.</value></data>
+  <data name="S_Telemetry.Label" xml:space="preserve"><value>Apagar telemetría y programas de HP/NVIDIA en segundo plano</value></data>
+  <data name="S_Telemetry.Desc" xml:space="preserve"><value>DiagTrack, dmwappushservice, RetailDemo, InventorySvc, nvagent, HP.</value></data>
+  <data name="S_Telemetry.Tip" xml:space="preserve"><value>Sin dependientes en Home.</value></data>
+  <data name="S_Xbox.Label" xml:space="preserve"><value>Apagar Xbox y Game Bar (solo si no juegas)</value></data>
+  <data name="S_Xbox.Desc" xml:space="preserve"><value>Solo sin gaming.</value></data>
+  <data name="S_Xbox.Tip" xml:space="preserve"><value>XblAuthManager, XblGameSave, XboxGipSvc, XboxNetApiSvc.</value></data>
+  <data name="S_Maps.Label" xml:space="preserve"><value>Apagar Mapas y ubicación</value></data>
+  <data name="S_Maps.Desc" xml:space="preserve"><value>Solo si no los usas.</value></data>
+  <data name="S_Maps.Tip" xml:space="preserve"><value>MapsBroker + lfsvc.</value></data>
+  <data name="S_SysMain.Label" xml:space="preserve"><value>Apagar precarga de apps en memoria (SysMain)</value></data>
+  <data name="S_SysMain.Desc" xml:space="preserve"><value>Ahorra RAM (mide antes/después).</value></data>
+  <data name="S_SysMain.Tip" xml:space="preserve"><value>En HDD enlentece aperturas.</value></data>
+  <data name="S_Misc.Label" xml:space="preserve"><value>Apagar ayudantes en segundo plano (compatibilidad, vínculos, red, datos)</value></data>
+  <data name="S_Misc.Desc" xml:space="preserve"><value>Riesgo bajo.</value></data>
+  <data name="S_Misc.Tip" xml:space="preserve"><value>Compatibilidad y red menor.</value></data>
+  <data name="Toast.OkTitle" xml:space="preserve"><value>Safe Debloat</value></data>
+  <data name="Toast.OkMsg" xml:space="preserve"><value>Cambios exportados ({0} servicios).</value></data>
+  <data name="Toast.NothingTitle" xml:space="preserve"><value>Safe Debloat</value></data>
+  <data name="Toast.NothingMsg" xml:space="preserve"><value>Sin cambios: no hay nada seleccionado.</value></data>
+  <data name="Toast.ErrorTitle" xml:space="preserve"><value>Safe Debloat</value></data>
+  <data name="Toast.ErrorMsg" xml:space="preserve"><value>Error al exportar la selección.</value></data>
+  <data name="Info.Impl.Title" xml:space="preserve"><value>Implicaciones</value></data>
+  <data name="Info.Risk.Title" xml:space="preserve"><value>Riesgos</value></data>
+  <data name="T_Ads.Impl" xml:space="preserve"><value>Dejas de ver anuncios basados en lo que haces en Windows.</value></data>
+  <data name="T_Explorer.Impl" xml:space="preserve"><value>Verás con qué terminan los archivos (.exe, .txt), verás los ocultos, y el Explorador abrirá en Este equipo.</value></data>
+  <data name="T_Taskbar.Impl" xml:space="preserve"><value>El botón Inicio y los iconos vuelven a la izquierda; desaparecen Widgets y el botón de Task View.</value></data>
+  <data name="T_Search.Impl" xml:space="preserve"><value>Al buscar en Inicio solo salen tus archivos y apps; desaparecen los resultados web y Copilot.</value></data>
+  <data name="S_Telemetry.Impl" xml:space="preserve"><value>Windows y los programas de HP/NVIDIA dejan de ejecutarse y de enviar datos en segundo plano.</value></data>
+  <data name="S_Xbox.Impl" xml:space="preserve"><value>Desaparecen la Game Bar (Win+G), las capturas de juegos y los servicios de Xbox.</value></data>
+  <data name="S_Maps.Impl" xml:space="preserve"><value>La app Mapas y todo lo que use tu ubicación (clima, buscar mi dispositivo) deja de funcionar.</value></data>
+  <data name="S_SysMain.Impl" xml:space="preserve"><value>Windows deja de adivinar qué apps vas a abrir para tenerlas listas (usa menos RAM en reposo).</value></data>
+  <data name="S_Misc.Impl" xml:space="preserve"><value>Se apagan 4 ayudantes: el que avisa de programas incompatibles, el que repara accesos directos, la red antigua de oficina y el medidor de datos.</value></data>
+  <data name="T_Ads.Risk" xml:space="preserve"><value>Ninguno.</value></data>
+  <data name="T_Explorer.Risk" xml:space="preserve"><value>Verás archivos del sistema: no borres ni muevas lo que no reconozcas.</value></data>
+  <data name="T_Taskbar.Risk" xml:space="preserve"><value>Ninguno.</value></data>
+  <data name="T_Search.Risk" xml:space="preserve"><value>Si usas Copilot o las sugerencias web del buscador, los pierdes.</value></data>
+  <data name="S_Telemetry.Risk" xml:space="preserve"><value>OMEN/HP y GeForce Experience pueden perder funciones; la app de comentarios (Feedback Hub) se queda sin datos.</value></data>
+  <data name="S_Xbox.Risk" xml:space="preserve"><value>Si juegas o grabas pantalla con Game Bar, no funcionará.</value></data>
+  <data name="S_Maps.Risk" xml:space="preserve"><value>Mapas, el clima por ubicación y Buscar mi dispositivo fallan.</value></data>
+  <data name="S_SysMain.Risk" xml:space="preserve"><value>Con disco duro mecánico (HDD) los programas abren más lento. Con SSD casi no se nota.</value></data>
+  <data name="S_Misc.Risk" xml:space="preserve"><value>No verás avisos al instalar programas viejos; algún acceso directo puede romperse; el contador de datos queda vacío.</value></data>
+</root>
