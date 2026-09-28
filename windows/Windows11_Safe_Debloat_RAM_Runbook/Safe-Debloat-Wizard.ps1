@@ -1,32 +1,42 @@
-﻿# Safe-Debloat-Wizard.ps1 — NavigationView-style (rail + páginas): Overview con chart,
-# grid completo de procesos, categorías con toggles y diálogo modal de confirmación.
-# PowerShell + WPF, sin SDK. La elevación ocurre solo en Safe-Debloat-Apply.ps1 (un UAC).
+﻿# Safe-Debloat-Wizard.ps1 — NavigationView-style: rail + vistas por categoría (sin stepper).
+# Cada tweak es una tarjeta estilo SettingsExpander (icono+título+descripción+switch) con
+# su propio botón Aplicar + diálogo modal. PowerShell + WPF, sin SDK.
+# La elevación ocurre solo en Safe-Debloat-Apply.ps1 (un UAC).
 if ([Threading.Thread]::CurrentThread.GetApartmentState() -ne "STA") {
   powershell -STA -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath @args; exit $LASTEXITCODE
 }
 Add-Type -AssemblyName PresentationFramework
 
 $groups = @(
-  @{ Title = 'Privacidad'; Items = @(
+  @{ Title = 'Privacidad'; GlyphCode = 0xE72E; Items = @(
     @{ Id = 'T_Ads'; Label = 'Sin ID de publicidad ni experiencias a medida';
+       Desc = 'Quita el ID de publicidad y las experiencias a medida de Windows.';
        Tip = 'AdvertisingInfo\Enabled=0 + TailoredExperiences=0.'; On = $true }) },
-  @{ Title = 'Explorador'; Items = @(
+  @{ Title = 'Explorador'; GlyphCode = 0xE8B7; Items = @(
     @{ Id = 'T_Explorer'; Label = 'Extensiones visibles + ocultos + Este equipo';
+       Desc = 'Muestra extensiones y archivos ocultos; abre en Este equipo.';
        Tip = 'HideFileExt=0, Hidden=1, LaunchTo=1.'; On = $true }) },
-  @{ Title = 'Barra de tareas'; Items = @(
+  @{ Title = 'Barra de tareas'; GlyphCode = 0xE7F4; Items = @(
     @{ Id = 'T_Taskbar'; Label = 'Izquierda, sin widgets ni Task View';
+       Desc = 'Alineación clásica sin distracciones.';
        Tip = 'TaskbarAl=0, TaskbarDa=0, ShowTaskViewButton=0.'; On = $true }) },
-  @{ Title = 'Búsqueda y Copilot'; Items = @(
+  @{ Title = 'Búsqueda y Copilot'; GlyphCode = 0xE094; Items = @(
     @{ Id = 'T_Search'; Label = 'Sin Bing en buscar + sin Copilot';
+       Desc = 'Búsqueda local solamente, sin asistente.';
        Tip = 'DisableSearchBoxSuggestions=1, TurnOffWindowsCopilot=1, ShowCopilotButton=0.'; On = $true }) },
-  @{ Title = 'Servicios: telemetría'; Items = @(
-    @{ Id = 'S_Telemetry'; Label = 'DiagTrack, dmwappushservice, RetailDemo, InventorySvc, nvagent, HP';
-       Tip = 'Telemetría y vendor. Sin dependientes en Home.'; On = $true }) },
-  @{ Title = 'Servicios: condicional'; Items = @(
-    @{ Id = 'S_Xbox'; Label = 'Xbox (4) — solo sin gaming'; Tip = 'Game Bar y juegos los necesitan.'; On = $false },
-    @{ Id = 'S_Maps'; Label = 'Mapas y ubicación — solo si no los usas'; Tip = 'MapsBroker + lfsvc.'; On = $false },
-    @{ Id = 'S_SysMain'; Label = 'SysMain — ahorra RAM (mide antes/después)'; Tip = 'En HDD enlentece aperturas.'; On = $false },
-    @{ Id = 'S_Misc'; Label = 'PcaSvc + TrkWks + lmhosts + DusmSvc'; Tip = 'Riesgo bajo.'; On = $false }) }
+  @{ Title = 'Servicios: telemetría'; GlyphCode = 0xE713; Items = @(
+    @{ Id = 'S_Telemetry'; Label = 'Telemetría y vendor';
+       Desc = 'DiagTrack, dmwappushservice, RetailDemo, InventorySvc, nvagent, HP.';
+       Tip = 'Sin dependientes en Home.'; On = $true }) },
+  @{ Title = 'Servicios: condicional'; GlyphCode = 0xE713; Items = @(
+    @{ Id = 'S_Xbox'; Label = 'Xbox (4)'; Desc = 'Solo sin gaming.';
+       Tip = 'XblAuthManager, XblGameSave, XboxGipSvc, XboxNetApiSvc.'; On = $false },
+    @{ Id = 'S_Maps'; Label = 'Mapas y ubicación'; Desc = 'Solo si no los usas.';
+       Tip = 'MapsBroker + lfsvc.'; On = $false },
+    @{ Id = 'S_SysMain'; Label = 'SysMain'; Desc = 'Ahorra RAM (mide antes/después).';
+       Tip = 'En HDD enlentece aperturas.'; On = $false },
+    @{ Id = 'S_Misc'; Label = 'PcaSvc + TrkWks + lmhosts + DusmSvc'; Desc = 'Riesgo bajo.';
+       Tip = 'Compatibilidad y red menor.'; On = $false }) }
 )
 $tweakDefs = @{
   T_Ads      = @(@{ Path = 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\AdvertisingInfo'; Name = 'Enabled'; Value = 0 },
@@ -48,9 +58,6 @@ $svcDefs = @{
   S_SysMain   = @('SysMain')
   S_Misc      = @('PcaSvc','TrkWks','lmhosts','DusmSvc')
 }
-# Glifos Segoe MDL2 Assets por código (a prueba de encoding).
-$navGlyphs = @([char]0xE9D2, [char]0xE8FD, [char]0xE72E, [char]0xE8B7,
-               [char]0xE7F4, [char]0xE094, [char]0xE713, [char]0xE73E, [char]0xE8FB)
 
 $xaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Safe Debloat" Height="600" Width="920" Background="White" WindowStartupLocation="CenterScreen" FontFamily="Segoe UI Variable Text">
@@ -81,16 +88,13 @@ $xaml = @"
 <Setter Property="BorderBrush" Value="#0078D4"/>
 </Style>
 <Style x:Key="ToggleSwitch" TargetType="CheckBox">
-<Setter Property="Margin" Value="0,6,0,6"/>
+<Setter Property="Margin" Value="0"/>
 <Setter Property="Template">
 <Setter.Value>
 <ControlTemplate TargetType="CheckBox">
-<StackPanel Orientation="Horizontal">
 <Border Name="track" Width="52" Height="28" CornerRadius="14" Background="#8A8A8A">
 <Ellipse Name="thumb" Width="20" Height="20" Fill="White" HorizontalAlignment="Left" Margin="4,0,0,0"/>
 </Border>
-<ContentPresenter Margin="10,0,0,0" VerticalAlignment="Center"/>
-</StackPanel>
 <ControlTemplate.Triggers>
 <Trigger Property="IsChecked" Value="True">
 <Setter TargetName="track" Property="Background" Value="#0078D4"/>
@@ -116,35 +120,27 @@ $xaml = @"
 <StackPanel Name="NavRail" Margin="0,8,0,0"/>
 <TextBlock Text="Protegidos: camsvc, RmSvc, DPS, iphlpsvc, red, CDPSvc, cbdhsvc. Nunca seleccionables." Name="ProtectNote" TextWrapping="Wrap" Margin="16,24,16,0" Foreground="#666666"/>
 </StackPanel>
-<Grid Grid.Column="1" Margin="20">
-<Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-<ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto"><StackPanel Name="PageHost"/></ScrollViewer>
-<StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
-<Button Name="BBack" Content="Back" Width="90"/>
-<TextBlock Name="StepLabel" VerticalAlignment="Center" Margin="20,0,20,0" Foreground="#666666"/>
-<Button Name="BNext" Content="Next" Width="90" Style="{StaticResource AccentButton}"/>
-</StackPanel>
-</Grid>
+<ScrollViewer Grid.Column="1" Margin="20" VerticalScrollBarVisibility="Auto"><StackPanel Name="PageHost"/></ScrollViewer>
 </Grid>
 </Window>
 "@
 $w = [Windows.Markup.XamlReader]::Parse($xaml)
 $rail = $w.FindName("NavRail"); $host_ = $w.FindName("PageHost")
 
-# Tema desde el OS (AppsUseLightTheme). Sin toolchain WinUI: paleta manual.
 $lightVal = (Get-ItemProperty 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name AppsUseLightTheme -ErrorAction SilentlyContinue).AppsUseLightTheme
 if ($null -eq $lightVal) { $lightVal = 1 }
 $script:T = if ($lightVal -ne 0) {
-  @{ Win = 'White'; Rail = '#F3F3F3'; Fg = '#1B1B1B'; Muted = '#666666'; Sel = '#E5E5E5'; Hover = '#EAEAEA'; Box = '#11111B' }
+  @{ Win = 'White'; Rail = '#F3F3F3'; Fg = '#1B1B1B'; Muted = '#666666'; Sel = '#E5E5E5'; Hover = '#EAEAEA'; Card = '#F9F9F9' }
 } else {
-  @{ Win = '#202020'; Rail = '#2B2B2B'; Fg = 'White'; Muted = '#AAAAAA'; Sel = '#3A3A3A'; Hover = '#333333'; Box = '#11111B' }
+  @{ Win = '#202020'; Rail = '#2B2B2B'; Fg = 'White'; Muted = '#AAAAAA'; Sel = '#3A3A3A'; Hover = '#333333'; Card = '#2D2D2D' }
 }
 $w.Background = $script:T.Win; $w.Foreground = $script:T.Fg
 $w.FindName("RailPanel").Background = $script:T.Rail
 $w.FindName("RailTitle").Foreground = $script:T.Fg
 $w.FindName("ProtectNote").Foreground = $script:T.Muted
-$w.FindName("StepLabel").Foreground = $script:T.Muted
-$navPages = @('Overview', 'Procesos') + ($groups | ForEach-Object { $_.Title }) + @('Confirmar', 'Verificar')
+
+$navPages = @('Overview', 'Procesos') + ($groups | ForEach-Object { $_.Title })
+$navGlyphs = @([char]0xE9D2, [char]0xE8FD) + ($groups | ForEach-Object { [char]$_.GlyphCode })
 $nPages = $navPages.Count
 $checkBoxes = @{}
 $script:page = 0
@@ -193,6 +189,42 @@ function Get-ProcRows {
       Autostart = (($svcs | ForEach-Object { $_.StartMode }) | Select-Object -Unique) -join ','
     }
   }
+}
+function New-Card($item) {
+  $card = New-Object Windows.Controls.Border
+  $card.CornerRadius = 6; $card.Background = $script:T.Card
+  $card.Padding = "12,10,12,10"; $card.Margin = "0,0,0,8"
+  $grid = New-Object Windows.Controls.Grid
+  $grid.ColumnDefinitions.Add((New-Object Windows.Controls.ColumnDefinition)) | Out-Null
+  $auto = New-Object Windows.Controls.ColumnDefinition
+  $auto.Width = "Auto"; $grid.ColumnDefinitions.Add($auto) | Out-Null
+  $left = New-Object Windows.Controls.StackPanel
+  $left.SetValue([Windows.Controls.Grid]::ColumnProperty, 0)
+  $title = New-Object Windows.Controls.TextBlock
+  $title.Text = $item.Label; $title.FontWeight = "SemiBold"; $title.Foreground = $script:T.Fg
+  $left.Children.Add($title) | Out-Null
+  $desc = New-Object Windows.Controls.TextBlock
+  $desc.Text = $item.Desc; $desc.Foreground = $script:T.Muted; $desc.TextWrapping = "Wrap"
+  $left.Children.Add($desc) | Out-Null
+  $detail = New-Object Windows.Controls.TextBlock
+  if ($svcDefs.ContainsKey($item.Id)) { $detail.Text = "Servicios: " + ($svcDefs[$item.Id] -join ', ') }
+  else { $detail.Text = "Valores: " + (($tweakDefs[$item.Id] | ForEach-Object { $_.Name }) -join ', ') + "`n" + $item.Tip }
+  $detail.Foreground = $script:T.Muted; $detail.TextWrapping = "Wrap"
+  $detail.Margin = "0,6,0,0"; $detail.Visibility = "Collapsed"
+  $left.Children.Add($detail) | Out-Null
+  $grid.Children.Add($left) | Out-Null
+  $cb = New-Object Windows.Controls.CheckBox
+  $cb.IsChecked = [bool]$item.On; $cb.Tag = $item.Id
+  $cb.Style = $w.FindResource("ToggleSwitch")
+  $cb.ToolTip = $item.Tip
+  $cb.SetValue([Windows.Controls.Grid]::ColumnProperty, 1)
+  $cb.VerticalAlignment = "Center"
+  $grid.Children.Add($cb) | Out-Null
+  $checkBoxes[$item.Id] = $cb
+  $left.Add_MouseLeftButtonUp({ $detail.Visibility = if ($detail.Visibility -eq "Collapsed") { "Visible" } else { "Collapsed" } })
+  $left.Cursor = "Hand"
+  $card.Child = $grid
+  return $card
 }
 function Render-Page($p) {
   $host_.Children.Clear()
@@ -247,39 +279,14 @@ function Render-Page($p) {
     }
     $dg.ItemsSource = @(Get-ProcRows | Sort-Object RAM_MB -Descending)
     $host_.Children.Add($dg) | Out-Null
-  } elseif ($p -eq ($nPages - 2)) {
-    Add-Text $host_ "Confirmar" 16 $true
-    $sel = Get-Selection
-    Add-Text $host_ ("Servicios ({0}): {1}" -f $sel.Services.Count, ($sel.Services -join ', '))
-    Add-Text $host_ ("Tweaks ({0} valores): {1}" -f $sel.Tweaks.Count, (($sel.Tweaks | ForEach-Object { $_.Name }) -join ', '))
-    $ap = New-Object Windows.Controls.Button
-    $ap.Content = "Aplicar (pide 1 UAC)"; $ap.Width = 180; $ap.Margin = "0,10,0,0"
-    $ap.Style = $w.FindResource("AccentButton")
-    $ap.Add_Click({ Ask-Confirm })
-    $host_.Children.Add($ap) | Out-Null
-    $script:statusBox = Add-Text $host_ "" 13
-  } elseif ($p -eq ($nPages - 1)) {
-    Add-Text $host_ "Verificar" 16 $true
-    $ram1 = Get-Ram
-    Add-Text $host_ ("Antes: {0} GB usados / Ahora: {1} GB usados. Ahorro: {2} GB." -f $script:ram0.Used, $ram1.Used, [math]::Round($script:ram0.Used - $ram1.Used, 2))
-    Add-Text $host_ "Checklist: scan Wi-Fi, Win+Shift+S, Win+V, Store. Si algo falla: Rollback-Debloat.ps1."
   } else {
     $g = $groups[$p - 2]
     Add-Text $host_ $g.Title 16 $true
-    foreach ($it in $g.Items) {
-      $cb = New-Object Windows.Controls.CheckBox
-      $cb.Content = $it.Label; $cb.ToolTip = $it.Tip; $cb.IsChecked = [bool]$it.On
-      $cb.Tag = $it.Id
-      $cb.Style = $w.FindResource("ToggleSwitch")
-      $cb.Foreground = $script:T.Fg
-      $host_.Children.Add($cb) | Out-Null
-      $checkBoxes[$it.Id] = $cb
-    }
-    $gi = $p - 2
+    foreach ($it in $g.Items) { $host_.Children.Add((New-Card $it)) | Out-Null }
     $ap1 = New-Object Windows.Controls.Button
-    $ap1.Content = "Aplicar $($g.Title)"; $ap1.Width = 220; $ap1.Margin = "0,12,0,0"
+    $ap1.Content = "Aplicar $($g.Title)"; $ap1.Width = 220; $ap1.Margin = "0,4,0,0"
     $ap1.Style = $w.FindResource("AccentButton")
-    $ap1.Tag = $gi
+    $ap1.Tag = ($p - 2)
     $ap1.Add_Click({ Ask-Confirm ([int]$this.Tag) })
     $host_.Children.Add($ap1) | Out-Null
     $script:statusBox = Add-Text $host_ "" 13
@@ -301,14 +308,15 @@ function Ask-Confirm($scope = -1) {
   $d = New-Object Windows.Window
   $d.Title = "Confirmar cambios"; $d.Width = 460; $d.Height = 300
   $d.WindowStartupLocation = "CenterOwner"; $d.Owner = $w
-  $d.FontFamily = "Segoe UI Variable Text"; $d.Background = "White"
+  $d.FontFamily = "Segoe UI Variable Text"; $d.Background = $script:T.Win; $d.Foreground = $script:T.Fg
   $sp = New-Object Windows.Controls.StackPanel; $sp.Margin = 20
   $t = New-Object Windows.Controls.TextBlock
   $t.Text = "Se desactivaran $($sel.Services.Count) servicios y se cambiaran $($sel.Tweaks.Count) valores de registro. Se crea restore point y Rollback-Debloat.ps1 antes de aplicar. Continuar?"
+  $t.Foreground = $script:T.Fg
   $t.TextWrapping = "Wrap"; $t.Margin = "0,0,0,16"
   $sp.Children.Add($t) | Out-Null
   $cbCloud = New-Object Windows.Controls.CheckBox
-  $cbCloud.Content = "Subir un respaldo a la nube."; $cbCloud.Margin = "0,0,0,16"
+  $cbCloud.Content = "Subir un respaldo a la nube."; $cbCloud.Margin = "0,0,0,16"; $cbCloud.Foreground = $script:T.Fg
   $sp.Children.Add($cbCloud) | Out-Null
   $row = New-Object Windows.Controls.StackPanel
   $row.Orientation = "Horizontal"; $row.HorizontalAlignment = "Right"
@@ -329,7 +337,10 @@ function Invoke-Apply($scope = -1) {
     ConvertTo-Json -Depth 5 | Set-Content "$env:TEMP\SafeDebloat-Selection.json" -Encoding UTF8
   Remove-Item "$env:TEMP\SafeDebloat-Done.txt" -ErrorAction SilentlyContinue
   & (Join-Path $PSScriptRoot "Safe-Debloat-Apply.ps1")
-  if (Test-Path "$env:TEMP\SafeDebloat-Done.txt") { $script:statusBox.Text = "Aplicado. Rollback en Rollback-Debloat.ps1." }
+  if (Test-Path "$env:TEMP\SafeDebloat-Done.txt") {
+    $ram1 = Get-Ram
+    $script:statusBox.Text = "Aplicado. RAM: $($script:ram0.Used) -> $($ram1.Used) GB. Rollback en Rollback-Debloat.ps1."
+  }
   else { $script:statusBox.Text = "Cancelado o fallo (revisa SafeDebloat-Apply.log en TEMP)." }
 }
 function Update-Chart {
@@ -416,12 +427,7 @@ function Show-Page($p) {
     $script:navBtns[$i].FontWeight = if ($i -eq $p) { "Bold" } else { "Normal" }
     $script:navBtns[$i].Background = if ($i -eq $p) { $script:T.Sel } else { "Transparent" }
   }
-  $w.FindName("BBack").IsEnabled = ($p -gt 0)
-  $w.FindName("BNext").Content = if ($p -eq ($nPages - 1)) { "Cerrar" } else { "Next" }
-  $w.FindName("StepLabel").Text = "Paso $($p + 1) de $nPages — $($navPages[$p])"
 }
-$w.FindName("BBack").Add_Click({ if ($script:page -gt 0) { Show-Page ($script:page - 1) } })
-$w.FindName("BNext").Add_Click({ if ($script:page -eq ($nPages - 1)) { $w.Close(); return }; Show-Page ($script:page + 1) })
 $w.Add_Closed({ $script:sampler.Stop() })
 Show-Page 0
 [void]$w.ShowDialog()
