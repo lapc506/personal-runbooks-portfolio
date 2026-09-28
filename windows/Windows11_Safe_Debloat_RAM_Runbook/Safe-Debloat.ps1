@@ -1,4 +1,4 @@
-# Safe-Debloat.ps1 — RAM debloat with guardrails. Self-elevates (one UAC).
+﻿# Safe-Debloat.ps1 — RAM debloat with guardrails. Self-elevates (one UAC).
 # 1) restore point, 2) records prior states + writes Rollback-Debloat.ps1,
 # 3) touches ONLY the safe/conditional lists, 4) prints before/after baseline.
 param()

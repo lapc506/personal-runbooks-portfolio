@@ -1,4 +1,4 @@
-# Measure-RamBaseline.ps1 — idle RAM snapshot before/after debloat (same conditions both times: no apps open).
+﻿# Measure-RamBaseline.ps1 — idle RAM snapshot before/after debloat (same conditions both times: no apps open).
 $os = Get-CimInstance Win32_OperatingSystem
 $svchostMB = (Get-Process svchost -ErrorAction SilentlyContinue |
   Measure-Object WorkingSet64 -Sum).Sum / 1MB

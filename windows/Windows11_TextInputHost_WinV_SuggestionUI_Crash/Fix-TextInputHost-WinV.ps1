@@ -1,4 +1,4 @@
-# Fix-TextInputHost-WinV.ps1 — one-UAC bundle for the Win+V TextInputHost crash.
+﻿# Fix-TextInputHost-WinV.ps1 — one-UAC bundle for the Win+V TextInputHost crash.
 # Re-asserts platform services, resets TextInputHost state (direct delete or
 # reboot-scheduled via MoveFileEx), and reports reboot/SFC status.
 # Safe to re-run: every step is idempotent.

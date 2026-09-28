@@ -1,4 +1,4 @@
-# Safe-Debloat-Apply.ps1 — elevated worker launched by the wizard (one UAC).
+﻿# Safe-Debloat-Apply.ps1 — elevated worker launched by the wizard (one UAC).
 # In:  $env:TEMP\SafeDebloat-Selection.json { Services: [names], CreateRestorePoint: bool }
 # Out: rollback script + result file in the same folder as this script.
 param([string]$SelectionFile = "$env:TEMP\SafeDebloat-Selection.json")
@@ -29,6 +29,15 @@ try {
       Set-Service -Name $n -StartupType Disabled
       Write-Output "OK $n -> Disabled (was $($s.StartType))"
     } catch { Write-Output "FAIL $n : $($_.Exception.Message)" }
+  }
+  $rollback | Set-Content (Join-Path $PSScriptRoot 'Rollback-Debloat.ps1') -Encoding UTF8
+  foreach ($t in $sel.Tweaks) {
+    if (-not (Test-Path $t.Path)) { New-Item $t.Path -Force | Out-Null }
+    $cur = (Get-ItemProperty $t.Path -Name $t.Name -ErrorAction SilentlyContinue).($t.Name)
+    if ($null -eq $cur) { $rollback += "Remove-ItemProperty -Path '$($t.Path)' -Name '$($t.Name)' -ErrorAction SilentlyContinue" }
+    else { $rollback += "Set-ItemProperty -Path '$($t.Path)' -Name '$($t.Name)' -Value $cur" }
+    Set-ItemProperty -Path $t.Path -Name $t.Name -Value $t.Value
+    Write-Output ("TWEAK $($t.Path)\$($t.Name) = $($t.Value) (era $cur)")
   }
   $rollback | Set-Content (Join-Path $PSScriptRoot 'Rollback-Debloat.ps1') -Encoding UTF8
   Write-Output "ROLLBACK-WRITTEN"
