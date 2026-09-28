@@ -9,6 +9,10 @@ on plain-text QR payloads on this box (see parent README).
 - `QrCam.cs` — C# capture core: `MediaCapture` still photo → JPEG bytes → ZXing `DecodeMultiple`.
   Compiled with the in-box Framework `csc.exe` against the OS `.winmd` files; uses
   `IAsyncInfo.Status` polling instead of `await` (no WinRT await extensions needed).
+  No live preview stream: `StartPreviewAsync` requires a XAML sink, so the "preview" is a
+  ~1 fps still-photo loop over one persistent `MediaCapture` instance (released on close).
+  Each capture disposes its stream and the result box is cleared, so re-scans never show stale data.
+- `build.bat` — one-shot compile to `QrCam.dll` (no SDK: no `dotnet`, no VS, no cargo).
 - `build.bat` — one-shot compile to `QrCam.dll` (no SDK: no `dotnet`, no VS, no cargo).
 - `QR-Scan.ps1` — dark WPF window: **Capturar QR** (webcam), **Desde imagen** (file),
   **Copiar**. Self-elevates to STA.

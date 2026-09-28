@@ -6,6 +6,7 @@ set QRD=C:\Users\guara\QRDemo
  /reference:"%MD%\Windows.Media.winmd" ^
  /reference:"%MD%\Windows.Foundation.winmd" ^
  /reference:"%MD%\Windows.Storage.winmd" ^
+ /reference:"%MD%\Windows.Graphics.winmd" ^
  /reference:System.Drawing.dll ^
  /reference:System.Runtime.dll ^
  /reference:System.Runtime.WindowsRuntime.dll ^
