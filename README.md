@@ -29,7 +29,9 @@ See [`toolkits/README.md`](./toolkits/README.md) for the full rationale behind t
 
 ### Windows
 
-_(Placeholder for future PowerShell runbooks.)_
+- [`Windows11_SnippingTool_WinShiftS_camsvc_Disabled`](./windows/Windows11_SnippingTool_WinShiftS_camsvc_Disabled) — fix `Win+Shift+S` doing nothing and Snipping Tool restarting on **New** when `camsvc` (Capability Access Manager) was left `Disabled` by a debloat run, so `Microsoft.ScreenSketch` fails `windows.capability` registration with `0x80070422`. Ships `Restore-camsvc.ps1` + `Repair-SnippingTool.ps1`.
+- [`Windows11_Camera_QR_NonUrl_Xaml_FailFast`](./windows/Windows11_Camera_QR_NonUrl_Xaml_FailFast) — diagnose Camera crashing on tapping non-URL QR pills (`Windows.UI.Xaml 0xc000027b` wrapping `combase E_FAIL`, bucket `2305734594999441892`) with a live `cdb.exe` minidump stack proving the FailFast originates in the XAML text-input path; URL pills work, reinstalls don't help. Ships `Get-AppCrashReport.ps1` and `QrScanner-Tool/` (C# + `csc` + ZXing + Win32 clipboard workaround that actually copies).
+- [`Windows11_Debloat_Service_Audit_Ublaze_Raphire`](./windows/Windows11_Debloat_Service_Audit_Ublaze_Raphire) — attribute a box's `Disabled` services to Ublaze Windows11-Optimizer (10 matches: Xbox/telemetry batch) vs Raphire Win11Debloat (current master disables zero services), list the third-party/manual remainder, and show why a clean SCM log doesn't prove health (WinRT `ERROR_SERVICE_DISABLED` surfaces as app-side stowed exceptions). Ships `Audit-DisabledServices.ps1`.
 
 ### Cross-platform
 
