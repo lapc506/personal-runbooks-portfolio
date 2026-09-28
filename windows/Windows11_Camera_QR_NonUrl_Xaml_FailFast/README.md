@@ -51,6 +51,12 @@ throws a .NET Native exception (`mrt100_app`), gets rethrown across the UWP host
 catchable error. Both crashing apps are `Windows.UI.Xaml` apps, which is why two unrelated
 codebases die identically on the text/copy path.
 
+## Update 2026-09-28 — non-URL pill now copies (hypothesis revised)
+
+Retest after the `Win+V` reboot (`cbdhsvc_ae4e3 Running`, `TextInputHost` stable since `03:02:17`, `CBS RebootPending False`): tapping a plain-text QR pill no longer crashes — the text appears in clipboard history via `Win+V`. Zero `Application Error 1000` for `WindowsCamera.exe` in the 60 min after the test (only pre-reboot `TextInputHost` crashes at `02:40/02:56` remain).
+
+Revised reading: the `Windows.UI.Xaml 0xc000027b / combase E_FAIL` FailFast needed the broken platform state (per-user `cbdhsvc_* Stopped`, `TextInputHost` crash loop, pending CBS renames) as a trigger. Same Camera build `2026.2607.1.0`, so it was never a pure app bug. The `QrScanner-Tool/` workaround is still valid offline, but no longer required for this path.
+
 ## Root cause (best supported hypothesis)
 
 App-level bug in Camera `2026.2607.1.0`: the non-URL pill path throws inside XAML text handling
