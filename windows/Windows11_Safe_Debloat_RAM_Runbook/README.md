@@ -16,6 +16,9 @@ auto-generated rollback).
 powershell -ExecutionPolicy Bypass -File .\Safe-Debloat-Wizard.ps1
 ```
 
+WinUI 3 runtime and Developer Mode findings for the native port are documented in the
+[Windows runbook index](../README.md#winui-3-developer-mode-and-windows-app-runtime).
+
 CLI alternative: edit the lists in `Safe-Debloat.ps1` and run it directly.
 
 ## How to use (classic)

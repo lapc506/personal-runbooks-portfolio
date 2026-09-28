@@ -1,22 +1,25 @@
-# WinUI3-SafeDebloat — native port scaffold (NOT buildable on the target box yet)
+# WinUI3-SafeDebloat — native WinUI 3 app
 
 Mirrors `Safe-Debloat-Wizard.ps1` (NavigationView rail, category pages, confirm dialog)
 with real WinUI 3 controls instead of WPF approximations.
 
-## Prereqs (absent on target box — only .NET 9 SDK is present)
+## Current status
 
-- Visual Studio 2022 17.12+ with **Windows App SDK** workload (or `dotnet` + Windows SDK +
-  manual `Microsoft.WindowsAppSDK` restore), plus package signing for MSIX runs.
-- Pin `Microsoft.WindowsAppSDK 1.8.*` to the exact build on first restore.
+- The app builds and opens through `dotnet run` as a packaged WinUI app on the target
+  machine. Developer Mode must be enabled for the local debug-package registration flow.
+- `SafeDebloat.csproj` uses `Microsoft.WindowsAppSDK 2.4.0`, enables MSIX tooling, and
+  includes `Microsoft.Windows.SDK.BuildTools.WinApp 0.7.0` for packaged `dotnet run`.
+- A published install/Desktop shortcut and the elevated PowerShell script workflow have
+  not yet been validated end to end.
 
-## Build (once prereqs exist)
+## Build and launch
 
 ```powershell
 dotnet restore
-dotnet build -c Release
+dotnet run -c Release -p:Platform=x64
 ```
 
-## TODO before it compiles clean
+## Remaining work
 
 - [x] CommunityToolkit **Labs DataTable** importado al Overview (`OverviewPage.xaml`):
   `CommunityToolkit.Labs.WinUI.Controls.DataTable 0.1.260915-build.2673` desde el feed
