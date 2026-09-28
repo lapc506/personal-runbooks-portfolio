@@ -2,6 +2,13 @@ using System.Collections.Generic;
 
 namespace SafeDebloat;
 
+public enum RiskBadgeKind
+{
+    Reversible,
+    Functional,
+    LowRisk
+}
+
 // Espejo de $groups / $svcDefs / $tweakDefs de Safe-Debloat-Wizard.ps1.
 // Label/Desc/Tip salen de Strings/*.resw (claves "{Id}.Label/Desc/Tip"); aquí solo
 // van Ids, servicios y el script que se aplicaría (leído en runtime, visible en modo Power User).
@@ -15,6 +22,8 @@ public sealed class TweackDef
     public string[] Services { get; set; } = System.Array.Empty<string>();
     public string[] RegNames { get; set; } = System.Array.Empty<string>();
     public string ScriptFile { get; set; } = "";
+    public RiskBadgeKind RiskBadge { get; set; } = RiskBadgeKind.LowRisk;
+    public bool NoRisk { get; set; }
     // Severidad del InfoBar de la card: "Informational" (HKCU reversible) o "Warning" (toca servicios).
     public string Severity { get; set; } = "Informational";
 }
@@ -30,9 +39,27 @@ public static class Catalog
 {
     public static readonly List<GroupDef> Groups = new()
     {
+        new GroupDef { Title = "AI", Glyph = "\uE7B5", Items = new()
+        {
+            new TweackDef { Id = "A_Copilot", Severity = "Warning", RiskBadge = RiskBadgeKind.Reversible, Label = "Desactivar Copilot",
+                Desc = "Quita el asistente de IA integrado y su botón en búsqueda/Inicio.",
+                Tip = "TurnOffWindowsCopilot=1 + ShowCopilotButton=0.", On = true,
+                RegNames = new[] { "TurnOffWindowsCopilot", "ShowCopilotButton" },
+                ScriptFile = "Scripts\\A_Copilot.ps1" },
+            new TweackDef { Id = "A_Recall", Severity = "Warning", RiskBadge = RiskBadgeKind.Functional, Label = "Desactivar Recall",
+                Desc = "Desactiva el historial/contexto de IA de Windows Recall.",
+                Tip = "DisableRecall / WindowsAI policy.", On = false,
+                RegNames = new[] { "DisableRecall" },
+                ScriptFile = "Scripts\\A_Recall.ps1" },
+            new TweackDef { Id = "A_ClickToDo", Severity = "Warning", RiskBadge = RiskBadgeKind.LowRisk, Label = "Desactivar Click to Do",
+                Desc = "Apaga la IA para análisis de texto e imagen.",
+                Tip = "DisableClickToDo.", On = false,
+                RegNames = new[] { "DisableClickToDo" },
+                ScriptFile = "Scripts\\A_ClickToDo.ps1" },
+        } },
         new GroupDef { Title = "Privacidad", Glyph = "\uE72E", Items = new()
         {
-            new TweackDef { Id = "T_Ads", Label = "Sin ID de publicidad ni experiencias a medida",
+            new TweackDef { Id = "T_Ads", RiskBadge = RiskBadgeKind.Reversible, NoRisk = true, Label = "Sin ID de publicidad ni experiencias a medida",
                 Desc = "Quita el ID de publicidad y las experiencias a medida de Windows.",
                 Tip = "AdvertisingInfo\\Enabled=0 + TailoredExperiences=0.", On = true,
                 RegNames = new[] { "Enabled", "TailoredExperiencesWithDiagnosticDataEnabled" },
@@ -40,7 +67,7 @@ public static class Catalog
         } },
         new GroupDef { Title = "Explorador", Glyph = "\uE8B7", Items = new()
         {
-            new TweackDef { Id = "T_Explorer", Label = "Extensiones visibles + ocultos + Este equipo",
+            new TweackDef { Id = "T_Explorer", RiskBadge = RiskBadgeKind.LowRisk, Label = "Extensiones visibles + ocultos + Este equipo",
                 Desc = "Muestra extensiones y archivos ocultos; abre en Este equipo.",
                 Tip = "HideFileExt=0, Hidden=1, LaunchTo=1.", On = true,
                 RegNames = new[] { "HideFileExt", "Hidden", "LaunchTo" },
@@ -48,7 +75,7 @@ public static class Catalog
         } },
         new GroupDef { Title = "Barra de tareas", Glyph = "\uE7F4", Items = new()
         {
-            new TweackDef { Id = "T_Taskbar", Label = "Izquierda, sin widgets ni Task View",
+            new TweackDef { Id = "T_Taskbar", RiskBadge = RiskBadgeKind.Reversible, NoRisk = true, Label = "Izquierda, sin widgets ni Task View",
                 Desc = "Alineación clásica sin distracciones.",
                 Tip = "TaskbarAl=0, TaskbarDa=0, ShowTaskViewButton=0.", On = true,
                 RegNames = new[] { "TaskbarAl", "TaskbarDa", "ShowTaskViewButton" },
@@ -56,7 +83,7 @@ public static class Catalog
         } },
         new GroupDef { Title = "Búsqueda y Copilot", Glyph = "\uE094", Items = new()
         {
-            new TweackDef { Id = "T_Search", Label = "Sin Bing en buscar + sin Copilot",
+            new TweackDef { Id = "T_Search", RiskBadge = RiskBadgeKind.Functional, Label = "Sin Bing en buscar + sin Copilot",
                 Desc = "Búsqueda local solamente, sin asistente.",
                 Tip = "DisableSearchBoxSuggestions=1, TurnOffWindowsCopilot=1, ShowCopilotButton=0.", On = true,
                 RegNames = new[] { "DisableSearchBoxSuggestions", "TurnOffWindowsCopilot", "ShowCopilotButton" },
@@ -64,7 +91,7 @@ public static class Catalog
         } },
         new GroupDef { Title = "Servicios: telemetría", Glyph = "\uE713", Items = new()
         {
-            new TweackDef { Id = "S_Telemetry", Severity = "Warning", Label = "Telemetría y vendor",
+            new TweackDef { Id = "S_Telemetry", Severity = "Warning", RiskBadge = RiskBadgeKind.Functional, Label = "Telemetría y vendor",
                 Desc = "DiagTrack, dmwappushservice, RetailDemo, InventorySvc, nvagent, HP.",
                 Tip = "Sin dependientes en Home.", On = true,
                 Services = new[] { "DiagTrack", "dmwappushservice", "RetailDemo", "InventorySvc", "nvagent", "HpTouchpointAnalyticsService" },
@@ -72,19 +99,19 @@ public static class Catalog
         } },
         new GroupDef { Title = "Servicios: condicional", Glyph = "\uE713", Items = new()
         {
-            new TweackDef { Id = "S_Xbox", Severity = "Warning", Label = "Xbox (4)", Desc = "Solo sin gaming.",
+            new TweackDef { Id = "S_Xbox", Severity = "Warning", RiskBadge = RiskBadgeKind.Functional, Label = "Xbox (4)", Desc = "Solo sin gaming.",
                 Tip = "XblAuthManager, XblGameSave, XboxGipSvc, XboxNetApiSvc.", On = false,
                 Services = new[] { "XblAuthManager", "XblGameSave", "XboxGipSvc", "XboxNetApiSvc" },
                 ScriptFile = "Scripts\\S_Xbox.ps1" },
-            new TweackDef { Id = "S_Maps", Severity = "Warning", Label = "Mapas y ubicación", Desc = "Solo si no los usas.",
+            new TweackDef { Id = "S_Maps", Severity = "Warning", RiskBadge = RiskBadgeKind.Functional, Label = "Mapas y ubicación", Desc = "Solo si no los usas.",
                 Tip = "MapsBroker + lfsvc.", On = false,
                 Services = new[] { "MapsBroker", "lfsvc" },
                 ScriptFile = "Scripts\\S_Maps.ps1" },
-            new TweackDef { Id = "S_SysMain", Severity = "Warning", Label = "SysMain", Desc = "Ahorra RAM (mide antes/después).",
+            new TweackDef { Id = "S_SysMain", Severity = "Warning", RiskBadge = RiskBadgeKind.Functional, Label = "SysMain", Desc = "Ahorra RAM (mide antes/después).",
                 Tip = "En HDD enlentece aperturas.", On = false,
                 Services = new[] { "SysMain" },
                 ScriptFile = "Scripts\\S_SysMain.ps1" },
-            new TweackDef { Id = "S_Misc", Severity = "Warning", Label = "PcaSvc + TrkWks + lmhosts + DusmSvc", Desc = "Riesgo bajo.",
+            new TweackDef { Id = "S_Misc", Severity = "Warning", RiskBadge = RiskBadgeKind.Functional, Label = "PcaSvc + TrkWks + lmhosts + DusmSvc", Desc = "Riesgo bajo.",
                 Tip = "Compatibilidad y red menor.", On = false,
                 Services = new[] { "PcaSvc", "TrkWks", "lmhosts", "DusmSvc" },
                 ScriptFile = "Scripts\\S_Misc.ps1" },
