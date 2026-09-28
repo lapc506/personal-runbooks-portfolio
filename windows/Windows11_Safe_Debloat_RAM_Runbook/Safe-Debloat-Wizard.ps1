@@ -110,11 +110,11 @@ $xaml = @"
 </Style>
 </Window.Resources>
 <Grid>
-<Grid.ColumnDefinitions><ColumnDefinition Width="210"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-<StackPanel Grid.Column="0" Background="#F3F3F3">
-<TextBlock Text="Safe Debloat" FontSize="18" FontWeight="Bold" Margin="16,16,0,4"/>
+<Grid.ColumnDefinitions><ColumnDefinition x:Name="RailCol" Width="210"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+<StackPanel Name="RailPanel" Grid.Column="0" Background="#F3F3F3">
+<TextBlock Name="RailTitle" Text="Safe Debloat" FontSize="18" FontWeight="Bold" Margin="16,16,0,4"/>
 <StackPanel Name="NavRail" Margin="0,8,0,0"/>
-<TextBlock Text="Protegidos: camsvc, RmSvc, DPS, iphlpsvc, red, CDPSvc, cbdhsvc. Nunca seleccionables." TextWrapping="Wrap" Margin="16,24,16,0" Foreground="#666666"/>
+<TextBlock Text="Protegidos: camsvc, RmSvc, DPS, iphlpsvc, red, CDPSvc, cbdhsvc. Nunca seleccionables." Name="ProtectNote" TextWrapping="Wrap" Margin="16,24,16,0" Foreground="#666666"/>
 </StackPanel>
 <Grid Grid.Column="1" Margin="20">
 <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -130,6 +130,20 @@ $xaml = @"
 "@
 $w = [Windows.Markup.XamlReader]::Parse($xaml)
 $rail = $w.FindName("NavRail"); $host_ = $w.FindName("PageHost")
+
+# Tema desde el OS (AppsUseLightTheme). Sin toolchain WinUI: paleta manual.
+$lightVal = (Get-ItemProperty 'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Themes\Personalize' -Name AppsUseLightTheme -ErrorAction SilentlyContinue).AppsUseLightTheme
+if ($null -eq $lightVal) { $lightVal = 1 }
+$script:T = if ($lightVal -ne 0) {
+  @{ Win = 'White'; Rail = '#F3F3F3'; Fg = '#1B1B1B'; Muted = '#666666'; Sel = '#E5E5E5'; Hover = '#EAEAEA'; Box = '#11111B' }
+} else {
+  @{ Win = '#202020'; Rail = '#2B2B2B'; Fg = 'White'; Muted = '#AAAAAA'; Sel = '#3A3A3A'; Hover = '#333333'; Box = '#11111B' }
+}
+$w.Background = $script:T.Win; $w.Foreground = $script:T.Fg
+$w.FindName("RailPanel").Background = $script:T.Rail
+$w.FindName("RailTitle").Foreground = $script:T.Fg
+$w.FindName("ProtectNote").Foreground = $script:T.Muted
+$w.FindName("StepLabel").Foreground = $script:T.Muted
 $navPages = @('Overview', 'Procesos') + ($groups | ForEach-Object { $_.Title }) + @('Confirmar', 'Verificar')
 $nPages = $navPages.Count
 $checkBoxes = @{}
@@ -143,7 +157,8 @@ function Get-Ram {
   [pscustomobject]@{ Total = [math]::Round($os.TotalVisibleMemorySize / 1MB, 1)
     Used = [math]::Round(($os.TotalVisibleMemorySize - $os.FreePhysicalMemory) / 1MB, 2) }
 }
-function Add-Text($parent, $text, $size = 13, $bold = $false, $color = "#1B1B1B") {
+function Add-Text($parent, $text, $size = 13, $bold = $false, $color = $null) {
+  if (-not $color) { $color = $script:T.Fg }
   $t = New-Object Windows.Controls.TextBlock
   $t.Text = $text; $t.FontSize = $size; $t.TextWrapping = "Wrap"; $t.Margin = "0,4,0,4"
   if ($bold) { $t.FontWeight = "Bold" }
@@ -183,7 +198,7 @@ function Render-Page($p) {
   $host_.Children.Clear()
   if ($p -eq 0) {
     Add-Text $host_ "Bienvenido" 24 $true
-    Add-Text $host_ "Vamos a reducir tu consumo de RAM. Primero medimos tu punto de partida." 13 $false "#555555"
+    Add-Text $host_ "Vamos a reducir tu consumo de RAM. Primero medimos tu punto de partida." 13 $false $script:T.Muted
     if (-not $script:ram0) { $script:ram0 = Get-Ram; $script:totalGB = $script:ram0.Total }
     $pct = [math]::Round($script:ram0.Used / $script:totalGB * 100)
     Add-Text $host_ ("Memoria: {0}/{1} GB ({2}%)" -f $script:ram0.Used, $script:totalGB, $pct) 18 $true
@@ -212,14 +227,18 @@ function Render-Page($p) {
     $script:chartLine.Stroke = "#0078D4"; $script:chartLine.StrokeThickness = 2
     $cv.Children.Add($script:chartLine) | Out-Null
     $host_.Children.Add($cv) | Out-Null
-    Add-Text $host_ "60 segundos" 11 $false "#777777"
+    Add-Text $host_ "60 segundos" 11 $false $script:T.Muted
     $script:chartCanvas = $cv
     Update-Chart
   } elseif ($p -eq 1) {
     Add-Text $host_ "Procesos (completo)" 16 $true
-    Add-Text $host_ "Nuclear = binario bajo C:\Windows (heuristica por ruta). Autostart = StartMode de sus servicios (vacio = app, no servicio). Click en cabecera para ordenar." 12 $false "#555555"
+    Add-Text $host_ "Nuclear = binario bajo C:\Windows (heuristica por ruta). Autostart = StartMode de sus servicios (vacio = app, no servicio). Click en cabecera para ordenar." 12 $false $script:T.Muted
     $dg = New-Object Windows.Controls.DataGrid
     $dg.AutoGenerateColumns = $false; $dg.IsReadOnly = $true; $dg.Height = 380
+    if ($script:T.Win -ne 'White') {
+      $dg.Background = $script:T.Win; $dg.Foreground = $script:T.Fg
+      $dg.RowBackground = $script:T.Rail
+    }
     foreach ($c in @(@{H='Proceso';B='Proceso'},@{H='PID';B='PID'},@{H='RAM MB';B='RAM_MB'},
                      @{H='Nuclear';B='Nuclear'},@{H='Servicios';B='Servicios'},@{H='Autostart';B='Autostart'})) {
       $col = New-Object Windows.Controls.DataGridTextColumn
@@ -252,6 +271,7 @@ function Render-Page($p) {
       $cb.Content = $it.Label; $cb.ToolTip = $it.Tip; $cb.IsChecked = [bool]$it.On
       $cb.Tag = $it.Id
       $cb.Style = $w.FindResource("ToggleSwitch")
+      $cb.Foreground = $script:T.Fg
       $host_.Children.Add($cb) | Out-Null
       $checkBoxes[$it.Id] = $cb
     }
@@ -338,20 +358,47 @@ $script:sampler.Interval = [TimeSpan]::FromSeconds(1)
 $script:sampler.Add_Tick({ Update-Chart })
 $script:sampler.Start()
 $script:navBtns = @()
+$script:navLabels = @()
+$script:paneManual = $false
+$script:expanded = $true
+function Set-Pane($expand) {
+  $script:expanded = $expand
+  $w.FindName("RailCol").Width = if ($expand) { 210 } else { 64 }
+  foreach ($lb in $script:navLabels) { $lb.Visibility = if ($expand) { "Visible" } else { "Collapsed" } }
+  $w.FindName("RailTitle").Visibility = if ($expand) { "Visible" } else { "Collapsed" }
+  $w.FindName("ProtectNote").Visibility = if ($expand) { "Visible" } else { "Collapsed" }
+}
+$ham = New-Object Windows.Controls.Button
+$ham.Width = 40; $ham.Margin = "16,0,0,8"; $ham.ToolTip = "Colapsar panel"
+$hamGlyph = New-Object Windows.Controls.TextBlock
+$hamGlyph.Text = [char]0xE700; $hamGlyph.FontFamily = "Segoe MDL2 Assets"; $hamGlyph.FontSize = 16
+$hamGlyph.Foreground = $script:T.Fg
+$ham.Content = $hamGlyph
+$ham.Add_Click({
+  $script:paneManual = $true
+  Set-Pane (-not $script:expanded)
+})
+$rail.Children.Insert(0, $ham) | Out-Null
+$w.Add_SizeChanged({
+  if (-not $script:paneManual) { Set-Pane ($w.ActualWidth -ge 760) }
+})
 for ($i = 0; $i -lt $nPages; $i++) {
   $b = New-Object Windows.Controls.Button
   $b.Style = $w.FindResource("NavButton")
   $sp = New-Object Windows.Controls.StackPanel; $sp.Orientation = "Horizontal"
   $ic = New-Object Windows.Controls.TextBlock
   $ic.Text = $navGlyphs[$i]; $ic.FontFamily = "Segoe MDL2 Assets"; $ic.FontSize = 16
-  $ic.Width = 28; $ic.VerticalAlignment = "Center"
+  $ic.Width = 28; $ic.VerticalAlignment = "Center"; $ic.Foreground = $script:T.Fg
   $tx = New-Object Windows.Controls.TextBlock
-  $tx.Text = $navPages[$i]; $tx.VerticalAlignment = "Center"
+  $tx.Text = $navPages[$i]; $tx.VerticalAlignment = "Center"; $tx.Foreground = $script:T.Fg
   $sp.Children.Add($ic) | Out-Null; $sp.Children.Add($tx) | Out-Null
   $b.Content = $sp; $b.Tag = $i
   $b.Add_Click({ Show-Page ([int]$this.Tag) })
+  $b.Add_MouseEnter({ if ($script:page -ne [int]$this.Tag) { $this.Background = $script:T.Hover } })
+  $b.Add_MouseLeave({ if ($script:page -ne [int]$this.Tag) { $this.Background = "Transparent" } })
   $rail.Children.Add($b) | Out-Null
   $script:navBtns += $b
+  $script:navLabels += $tx
 }
 function Save-State($p) {
   $gi = $p - 2
@@ -367,7 +414,7 @@ function Show-Page($p) {
   Render-Page $p
   for ($i = 0; $i -lt $nPages; $i++) {
     $script:navBtns[$i].FontWeight = if ($i -eq $p) { "Bold" } else { "Normal" }
-    $script:navBtns[$i].Background = if ($i -eq $p) { "#E5E5E5" } else { "Transparent" }
+    $script:navBtns[$i].Background = if ($i -eq $p) { $script:T.Sel } else { "Transparent" }
   }
   $w.FindName("BBack").IsEnabled = ($p -gt 0)
   $w.FindName("BNext").Content = if ($p -eq ($nPages - 1)) { "Cerrar" } else { "Next" }
