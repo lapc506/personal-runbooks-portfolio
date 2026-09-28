@@ -5,7 +5,20 @@ Reduces idle RAM from bloatware/services **without** repeating the incident in
 broke Snipping Tool, Camera-QR, UWP copy, Win+V, Wi-Fi). Rule: **only disable what is
 measured unused AND mapped; everything else stays at factory defaults.**
 
-## How to use
+## How to use (wizard UI — fork of Raphire's tweak model, MUI-stepper UX)
+
+`Safe-Debloat-Wizard.ps1`: 1 Medir → 2 Elegir → 3 Confirmar → 4 Verificar, with Back/Next +
+dots. Same safe/conditional catalog as below; protected services are shown locked, never
+selectable. Apply runs `Safe-Debloat-Apply.ps1` (single UAC: restore point + apply +
+auto-generated rollback).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Safe-Debloat-Wizard.ps1
+```
+
+CLI alternative: edit the lists in `Safe-Debloat.ps1` and run it directly.
+
+## How to use (classic)
 
 1. Baseline first: `.\Measure-RamBaseline.ps1` → save the numbers.
 2. Edit the `$DisableIfUnused` / `$KeepAuto` lists ONLY for features you verified unused.
@@ -32,3 +45,10 @@ SAFE (telemetry/vendor, no dependents on a Home box):
 `DiagTrack`, `dmwappushservice`, `InventorySvc`, `nvagent`, `HpTouchpointAnalyticsService`.
 
 NEVER touch unknowns: `wuqisvc` and friends stay as-is until mapped. Unknown != unnecessary.
+
+## Roadmap (native WinUI 3)
+
+A `Microsoft.UI.Xaml` port (stepper via `NavigationView`/custom stepper, live camera via
+WinUI-Gallery `CaptureElementPreview` sample, MVVM via CommunityToolkit.Mvvm) needs the
+Windows App SDK + VS toolchain, absent on the target box (only .NET 9 SDK present). Until then,
+this PowerShell+WPF wizard is the shippable UI.
