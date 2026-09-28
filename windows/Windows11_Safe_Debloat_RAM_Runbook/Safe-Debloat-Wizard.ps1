@@ -152,15 +152,20 @@ function Add-Text($parent, $text, $size = 13, $bold = $false, $color = "#1B1B1B"
   return $t
 }
 function Get-ProcRows {
+  $pathByPid = @{}
+  foreach ($wp in (Get-CimInstance Win32_Process)) {
+    if ($wp.ProcessId -gt 0 -and $wp.ExecutablePath) { $pathByPid[[int]$wp.ProcessId] = $wp.ExecutablePath }
+  }
   $svcByPid = @{}
   foreach ($s in (Get-CimInstance Win32_Service)) {
     if ($s.ProcessId -gt 0) {
-      if (-not $svcByPid.ContainsKey($s.ProcessId)) { $svcByPid[$s.ProcessId] = @() }
-      $svcByPid[$s.ProcessId] += $s
+      $k = [int]$s.ProcessId
+      if (-not $svcByPid.ContainsKey($k)) { $svcByPid[$k] = @() }
+      $svcByPid[$k] += $s
     }
   }
   foreach ($p in (Get-Process)) {
-    try { $path = $p.Path } catch { $path = "" }
+    $path = if ($pathByPid.ContainsKey($p.Id)) { $pathByPid[$p.Id] } else { "" }
     $core = ($path -like 'C:\Windows\*')
     $svcs = @()
     if ($svcByPid.ContainsKey($p.Id)) { $svcs = $svcByPid[$p.Id] }
@@ -188,10 +193,26 @@ function Render-Page($p) {
     Add-Text $host_ "Ultimos 60 s (en vivo):" 13 $true
     $cv = New-Object Windows.Controls.Canvas
     $cv.Height = 120; $cv.Background = "#11111B"
+    for ($gi = 1; $gi -lt 8; $gi++) {
+      $gl = New-Object Windows.Shapes.Line
+      $gl.X1 = $gi / 8 * 560; $gl.X2 = $gi / 8 * 560; $gl.Y1 = 0; $gl.Y2 = 118
+      $gl.Stroke = "#2A2A2A"; $gl.StrokeThickness = 1
+      $cv.Children.Add($gl) | Out-Null
+    }
+    for ($gj = 1; $gj -lt 4; $gj++) {
+      $gl2 = New-Object Windows.Shapes.Line
+      $gl2.X1 = 0; $gl2.X2 = 560; $gl2.Y1 = $gj / 4 * 118; $gl2.Y2 = $gj / 4 * 118
+      $gl2.Stroke = "#2A2A2A"; $gl2.StrokeThickness = 1
+      $cv.Children.Add($gl2) | Out-Null
+    }
+    $script:chartFill = New-Object Windows.Shapes.Polygon
+    $script:chartFill.Fill = New-Object Windows.Media.SolidColorBrush([Windows.Media.Color]::FromArgb(70, 0, 120, 212))
+    $cv.Children.Add($script:chartFill) | Out-Null
     $script:chartLine = New-Object Windows.Shapes.Polyline
     $script:chartLine.Stroke = "#0078D4"; $script:chartLine.StrokeThickness = 2
     $cv.Children.Add($script:chartLine) | Out-Null
     $host_.Children.Add($cv) | Out-Null
+    Add-Text $host_ "60 segundos" 11 $false "#777777"
     $script:chartCanvas = $cv
     Update-Chart
   } elseif ($p -eq 1) {
@@ -304,6 +325,13 @@ function Update-Chart {
     $pts.Add((New-Object Windows.Point($x, $y))) | Out-Null
   }
   $script:chartLine.Points = $pts
+  $fp = New-Object Windows.Media.PointCollection
+  foreach ($pt in $pts) { $fp.Add($pt) | Out-Null }
+  if ($pts.Count -gt 0) {
+    $fp.Add((New-Object Windows.Point($pts[$pts.Count - 1].X, 118))) | Out-Null
+    $fp.Add((New-Object Windows.Point($pts[0].X, 118))) | Out-Null
+  }
+  $script:chartFill.Points = $fp
 }
 $script:sampler = New-Object Windows.Threading.DispatcherTimer
 $script:sampler.Interval = [TimeSpan]::FromSeconds(1)
