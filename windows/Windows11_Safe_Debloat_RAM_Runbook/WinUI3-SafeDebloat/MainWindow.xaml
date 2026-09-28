@@ -1,0 +1,33 @@
+<Window
+    x:Class="SafeDebloat.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <NavigationView x:Name="Nav" PaneDisplayMode="Auto"
+                    SelectionChanged="Nav_SelectionChanged">
+        <NavigationView.MenuItems>
+            <NavigationViewItem Content="Overview" Tag="Overview">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE9D2;"/>
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="Procesos" Tag="Procesos">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE8FD;"/>
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItemSeparator/>
+            <NavigationViewItem Content="Privacidad" Tag="Privacidad">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE72E;"/>
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="Servicios" Tag="Servicios">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE713;"/>
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+        </NavigationView.MenuItems>
+        <Frame x:Name="ContentFrame"/>
+    </NavigationView>
+</Window>

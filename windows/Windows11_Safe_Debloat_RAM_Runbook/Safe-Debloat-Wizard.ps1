@@ -260,6 +260,18 @@ function Render-Page($p) {
     $cv.Children.Add($script:chartLine) | Out-Null
     $host_.Children.Add($cv) | Out-Null
     Add-Text $host_ "60 segundos" 11 $false $script:T.Muted
+    $tl = New-Object Windows.Controls.Grid
+    $tl.ColumnDefinitions.Add((New-Object Windows.Controls.ColumnDefinition)) | Out-Null
+    $tl.ColumnDefinitions.Add((New-Object Windows.Controls.ColumnDefinition)) | Out-Null
+    $t60 = New-Object Windows.Controls.TextBlock; $t60.Text = "60 s"
+    $t60.Foreground = $script:T.Muted
+    $t60.SetValue([Windows.Controls.Grid]::ColumnProperty, 0)
+    $tl.Children.Add($t60) | Out-Null
+    $t0 = New-Object Windows.Controls.TextBlock; $t0.Text = "ahora"
+    $t0.Foreground = $script:T.Muted; $t0.HorizontalAlignment = "Right"
+    $t0.SetValue([Windows.Controls.Grid]::ColumnProperty, 1)
+    $tl.Children.Add($t0) | Out-Null
+    $host_.Children.Add($tl) | Out-Null
     $script:chartCanvas = $cv
     Update-Chart
   } elseif ($p -eq 1) {
@@ -267,10 +279,24 @@ function Render-Page($p) {
     Add-Text $host_ "Nuclear = binario bajo C:\Windows (heuristica por ruta). Autostart = StartMode de sus servicios (vacio = app, no servicio). Click en cabecera para ordenar." 12 $false $script:T.Muted
     $dg = New-Object Windows.Controls.DataGrid
     $dg.AutoGenerateColumns = $false; $dg.IsReadOnly = $true; $dg.Height = 380
+    $dg.GridLinesVisibility = "Horizontal"
+    $dg.RowHeaderWidth = 0
     if ($script:T.Win -ne 'White') {
       $dg.Background = $script:T.Win; $dg.Foreground = $script:T.Fg
-      $dg.RowBackground = $script:T.Rail
+      $dg.RowBackground = $script:T.Rail; $dg.AlternatingRowBackground = "#262626"
+    } else {
+      $dg.AlternatingRowBackground = "#F9F9F9"
     }
+    $rowStyle = New-Object Windows.Style([Windows.Controls.DataGridRow])
+    $trig = New-Object Windows.Trigger
+    $trig.Property = [Windows.Controls.DataGridRow]::IsMouseOverProperty
+    $trig.Value = $true
+    $trig.Setters.Add((New-Object Windows.Setter([Windows.Controls.DataGridRow]::BackgroundProperty, $script:T.Hover)))
+    $rowStyle.Triggers.Add($trig) | Out-Null
+    $dg.RowStyle = $rowStyle
+    $headStyle = New-Object Windows.Style([Windows.Controls.DataGridColumnHeader])
+    $headStyle.Setters.Add((New-Object Windows.Setter([Windows.Controls.Control]::FontWeightProperty, "Bold")))
+    $dg.ColumnHeaderStyle = $headStyle
     foreach ($c in @(@{H='Proceso';B='Proceso'},@{H='PID';B='PID'},@{H='RAM MB';B='RAM_MB'},
                      @{H='Nuclear';B='Nuclear'},@{H='Servicios';B='Servicios'},@{H='Autostart';B='Autostart'})) {
       $col = New-Object Windows.Controls.DataGridTextColumn
@@ -344,10 +370,10 @@ function Invoke-Apply($scope = -1) {
   else { $script:statusBox.Text = "Cancelado o fallo (revisa SafeDebloat-Apply.log en TEMP)." }
 }
 function Update-Chart {
-  if ($script:page -ne 0) { return }
   $r = Get-Ram
   $script:history.Add($r.Used)
   while ($script:history.Count -gt 60) { $script:history.RemoveAt(0) }
+  if ($script:page -ne 0 -or -not $script:chartLine) { return }
   $pts = New-Object Windows.Media.PointCollection
   $W = 560; $H = 118
   for ($i = 0; $i -lt $script:history.Count; $i++) {
