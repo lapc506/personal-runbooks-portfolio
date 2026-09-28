@@ -48,7 +48,9 @@ $xaml = @"
 </StackPanel>
 <StackPanel Grid.Column="1">
 <Image Name="Preview" Height="250" Stretch="Uniform" Margin="0,0,0,8"/>
-<TextBox Name="Out" Height="150" Background="#11111B" Foreground="White" FontFamily="Cascadia Mono,Consolas" FontSize="32" TextAlignment="Center" VerticalContentAlignment="Center" TextWrapping="Wrap" IsReadOnly="True"/>
+<RichTextBox Name="Out" Height="150" Background="#11111B" Foreground="White" FontFamily="Cascadia Mono,Consolas" FontSize="32" VerticalScrollBarVisibility="Auto" IsReadOnly="True">
+<FlowDocument><Paragraph><Run Text=""/></Paragraph></FlowDocument>
+</RichTextBox>
 </StackPanel>
 </Grid>
 </Window>
@@ -72,17 +74,35 @@ $timer.Add_Tick({
   } catch { }
 })
 
+function Show-Colored($text) {
+  $p = New-Object Windows.Documents.Paragraph
+  $p.TextAlignment = "Center"
+  foreach ($ch in $text.ToCharArray()) {
+    $run = New-Object Windows.Documents.Run([string]$ch)
+    if ($ch -match '[0-9]') { $c = [Windows.Media.Color]::FromRgb(255, 107, 107) }
+    elseif ($ch -match '[a-zA-Z]') { $c = [Windows.Media.Color]::FromRgb(255, 255, 255) }
+    else { $c = [Windows.Media.Color]::FromRgb(77, 166, 255) }
+    $run.Foreground = New-Object Windows.Media.SolidColorBrush($c)
+    $p.Inlines.Add($run) | Out-Null
+  }
+  $out.Document.Blocks.Add($p) | Out-Null
+}
+function Get-OutText {
+  $tr = New-Object Windows.Documents.TextRange($out.Document.ContentStart, $out.Document.ContentEnd)
+  return $tr.Text.Trim()
+}
 function Show-Result($r) {
   if (-not $r) { $st.Text = "Sin QR visible. Apunta al codigo."; return }
   $objs = $r | ForEach-Object { [pscustomobject]@{ BarcodeFormat = $_.BarcodeFormat; Text = $_.Text } }
-  $out.Text = ($objs | ForEach-Object { $_.Text }) -join "`r`n"
+  $out.Document.Blocks.Clear()
+  foreach ($o in $objs) { Show-Colored $o.Text }
   Set-Clipboard -Value $objs[0].Text
   $st.Text = "Decodificado + copiado ($($objs[0].BarcodeFormat))."
 }
 
 $w.FindName("BScan").Add_Click({
   $btn = $w.FindName("BScan"); $btn.IsEnabled = $false
-  $out.Text = ""; $st.Text = "Capturando..."
+  $out.Document.Blocks.Clear(); $st.Text = "Capturando..."
   try {
     $timer.Stop(); [QrCam]::StopPreview()
     try {
@@ -98,14 +118,14 @@ $w.FindName("BFile").Add_Click({
   $d = New-Object Windows.Forms.OpenFileDialog
   $d.Filter = "Imagenes|*.png;*.jpg;*.jpeg;*.bmp"
   if ($d.ShowDialog() -ne "OK") { return }
-  $out.Text = ""
+  $out.Document.Blocks.Clear()
   $b = [System.Drawing.Bitmap]::FromFile($d.FileName)
   $zr = New-Object ZXing.BarcodeReader
   $found = $zr.DecodeMultiple($b); $b.Dispose()
   $r = ($found | ForEach-Object { [pscustomobject]@{ BarcodeFormat = "$($_.BarcodeFormat)"; Text = $_.Text } })
   Show-Result $r
 })
-$w.FindName("BCopy").Add_Click({ if ($out.Text) { Set-Clipboard -Value $out.Text; $st.Text = "Copiado." } })
+$w.FindName("BCopy").Add_Click({ $t = Get-OutText; if ($t) { Set-Clipboard -Value $t; $st.Text = "Copiado." } })
 $w.FindName("BClose").Add_Click({ $w.Close() })
 $w.Add_Loaded({
   try { [QrCam]::StartPreview(); $timer.Start(); $st.Text = "Listo. Apunta al QR." }
