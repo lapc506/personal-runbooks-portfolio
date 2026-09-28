@@ -1,5 +1,5 @@
-Add-Type -Path "C:\Users\guara\QRDemo\lib\zxing.dll"
-Add-Type -Path "C:\Users\guara\QRDemo\QrCam.dll"
+Add-Type -Path (Join-Path $PSScriptRoot "lib\zxing.dll")
+Add-Type -Path (Join-Path $PSScriptRoot "QrCam.dll")
 Add-Type -AssemblyName System.Drawing
 Write-Output "LOADED-OK"
 $res = [QrCam]::CaptureAndDecode()
