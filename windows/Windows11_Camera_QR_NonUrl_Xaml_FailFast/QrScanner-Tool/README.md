@@ -39,6 +39,8 @@ powershell -ExecutionPolicy Bypass -File .\QR-Scan.ps1
 Hold the QR up to the webcam, click **Capturar QR**. First capture initializes the camera (slow);
 subsequent ones are fast. Clipboard history stays untouched (Win32 `Set-Clipboard` path).
 
+![QR Scanner — live still-loop preview, decoded text, copied](docs-qr-scanner-demo.png)
+
 ## Roadmap (native WinUI 3)
 
 Live camera preview via the WinUI-Gallery `CaptureElementPreview` sample
