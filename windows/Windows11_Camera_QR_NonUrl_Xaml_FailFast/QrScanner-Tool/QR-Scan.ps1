@@ -7,7 +7,7 @@ Add-Type -Path (Join-Path $PSScriptRoot "QrCam.dll")
 Add-Type -AssemblyName PresentationFramework, System.Drawing, System.Windows.Forms
 
 $xaml = @"
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="QR Scanner" Height="560" Width="460" Background="#1E1E2E" WindowStartupLocation="CenterScreen" FontFamily="Segoe UI Variable Text">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="QR Scanner" Height="520" Width="700" Background="#1E1E2E" WindowStartupLocation="CenterScreen" FontFamily="Segoe UI Variable Text">
 <Window.Resources>
 <Style TargetType="Button">
 <Setter Property="Padding" Value="12,6"/>
@@ -36,18 +36,21 @@ $xaml = @"
 <Setter Property="BorderBrush" Value="#0078D4"/>
 </Style>
 </Window.Resources>
-<StackPanel Margin="16">
+<Grid Margin="16">
+<Grid.ColumnDefinitions><ColumnDefinition Width="170"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+<StackPanel Grid.Column="0" Margin="0,0,12,0">
 <TextBlock Text="QR Scanner" Foreground="White" FontSize="20" FontWeight="Bold" Margin="0,0,0,4"/>
-<TextBlock Name="Status" Text="Iniciando camara..." Foreground="#A0A0A0" Margin="0,0,0,8"/>
-<Image Name="Preview" Height="200" Stretch="Uniform" Margin="0,0,0,8"/>
-<TextBox Name="Out" Height="90" Background="#11111B" Foreground="White" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" IsReadOnly="True"/>
-<StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-<Button Name="BScan" Content="Capturar QR" Width="110" Style="{StaticResource AccentButton}"/>
-<Button Name="BFile" Content="Desde imagen" Width="110" Margin="0,0,8,0"/>
-<Button Name="BCopy" Content="Copiar" Width="80" Margin="0,0,8,0"/>
-<Button Name="BClose" Content="Cerrar" Width="70"/>
+<TextBlock Name="Status" Text="Iniciando camara..." Foreground="#A0A0A0" Margin="0,0,0,8" TextWrapping="Wrap"/>
+<Button Name="BScan" Content="Capturar QR" Style="{StaticResource AccentButton}" Margin="0,0,0,8"/>
+<Button Name="BFile" Content="Desde imagen" Margin="0,0,0,8"/>
+<Button Name="BCopy" Content="Copiar" Margin="0,0,0,8"/>
+<Button Name="BClose" Content="Cerrar" Margin="0,0,0,8"/>
 </StackPanel>
+<StackPanel Grid.Column="1">
+<Image Name="Preview" Height="250" Stretch="Uniform" Margin="0,0,0,8"/>
+<TextBox Name="Out" Height="150" Background="#11111B" Foreground="White" FontFamily="Cascadia Mono,Consolas" FontSize="32" TextAlignment="Center" VerticalContentAlignment="Center" TextWrapping="Wrap" IsReadOnly="True"/>
 </StackPanel>
+</Grid>
 </Window>
 "@
 $w = [Windows.Markup.XamlReader]::Parse($xaml)
