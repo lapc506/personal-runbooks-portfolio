@@ -15,7 +15,59 @@ function Get-Ram {
 }
 
 $xaml = @"
-<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" Title="Safe Debloat — stepper" Height="540" Width="820" Background="White" WindowStartupLocation="CenterScreen">
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Safe Debloat — stepper" Height="540" Width="820" Background="White" WindowStartupLocation="CenterScreen" FontFamily="Segoe UI Variable Text">
+<Window.Resources>
+<Style TargetType="Button">
+<Setter Property="Padding" Value="12,6"/>
+<Setter Property="Background" Value="#F5F5F5"/>
+<Setter Property="Foreground" Value="#1B1B1B"/>
+<Setter Property="BorderBrush" Value="#E1E1E1"/>
+<Setter Property="BorderThickness" Value="1"/>
+<Setter Property="Template">
+<Setter.Value>
+<ControlTemplate TargetType="Button">
+<Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+<ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+</Border>
+<ControlTemplate.Triggers>
+<Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#EAEAEA"/></Trigger>
+<Trigger Property="IsPressed" Value="True"><Setter Property="Background" Value="#DADADA"/></Trigger>
+</ControlTemplate.Triggers>
+</ControlTemplate>
+</Setter.Value>
+</Setter>
+</Style>
+<Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+<Setter Property="Background" Value="#0078D4"/>
+<Setter Property="Foreground" Value="White"/>
+<Setter Property="BorderBrush" Value="#0078D4"/>
+</Style>
+<Style TargetType="CheckBox">
+<Setter Property="Margin" Value="0,3,0,3"/>
+<Setter Property="Template">
+<Setter.Value>
+<ControlTemplate TargetType="CheckBox">
+<StackPanel Orientation="Horizontal">
+<Border Name="box" Width="20" Height="20" CornerRadius="4" Background="White" BorderBrush="#605E5C" BorderThickness="1.5">
+<Path Name="glyph" Data="M 4 10 L 9 15 L 16 5" Stroke="White" StrokeThickness="2.5" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+</Border>
+<ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
+</StackPanel>
+<ControlTemplate.Triggers>
+<Trigger Property="IsChecked" Value="True">
+<Setter TargetName="box" Property="Background" Value="#0078D4"/>
+<Setter TargetName="box" Property="BorderBrush" Value="#0078D4"/>
+<Setter TargetName="glyph" Property="Visibility" Value="Visible"/>
+</Trigger>
+<Trigger Property="IsMouseOver" Value="True">
+<Setter TargetName="box" Property="BorderBrush" Value="#0078D4"/>
+</Trigger>
+</ControlTemplate.Triggers>
+</ControlTemplate>
+</Setter.Value>
+</Setter>
+</Style>
+</Window.Resources>
 <Grid>
 <Grid.ColumnDefinitions><ColumnDefinition Width="190"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
 <StackPanel Grid.Column="0" Background="#F3F3F3" Margin="0">
@@ -57,7 +109,7 @@ $xaml = @"
 <TextBlock Text="Paso 3 — Confirmar" FontSize="16" FontWeight="Bold"/>
 <TextBlock Name="Summary" Margin="0,10,0,0" TextWrapping="Wrap"/>
 <CheckBox Name="C_Restore" Content="Crear restore point antes (recomendado)" IsChecked="True" Margin="0,10,0,0"/>
-<Button Name="BApply" Content="Aplicar (pide 1 UAC)" Width="180" HorizontalAlignment="Left" Margin="0,10,0,0" Background="#0078D4" Foreground="White"/>
+<Button Name="BApply" Content="Aplicar (pide 1 UAC)" Width="180" HorizontalAlignment="Left" Margin="0,10,0,0" Style="{StaticResource AccentButton}"/>
 <TextBlock Name="ApplyStatus" Margin="0,8,0,0" TextWrapping="Wrap"/>
 </StackPanel>
 </Grid>
@@ -71,7 +123,7 @@ $xaml = @"
 <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
 <Button Name="BBack" Content="← Back" Width="90"/>
 <StackPanel Name="Dots" Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,20,0"/>
-<Button Name="BNext" Content="Next →" Width="90" Background="#0078D4" Foreground="White"/>
+<Button Name="BNext" Content="Next →" Width="90" Style="{StaticResource AccentButton}"/>
 </StackPanel>
 </Grid>
 </Grid>
