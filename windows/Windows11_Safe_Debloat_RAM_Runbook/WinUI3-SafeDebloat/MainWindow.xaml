@@ -4,49 +4,19 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Title="Safe Debloat">
 
-    <NavigationView x:Name="Nav" PaneDisplayMode="Auto"
-                    SelectionChanged="Nav_SelectionChanged">
+    <NavigationView x:Name="Nav"
+                    PaneDisplayMode="Auto"
+                    IsSettingsVisible="False">
         <NavigationView.MenuItems>
-            <NavigationViewItem x:Uid="NavOverview" Content="Resumen" Tag="Overview">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE9D2;"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItemSeparator/>
-            <NavigationViewItem x:Uid="NavG0" Content="Privacidad" Tag="G0">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE72E;"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem x:Uid="NavG1" Content="Explorador" Tag="G1">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE8B7;"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem x:Uid="NavG2" Content="Barra de tareas" Tag="G2">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE7F4;"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem x:Uid="NavG3" Content="Búsqueda y Copilot" Tag="G3">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE094;"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem x:Uid="NavG4" Content="Servicios: telemetría" Tag="G4">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE713;"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem x:Uid="NavG5" Content="Servicios: condicional" Tag="G5">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE713;"/>
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
+            <!-- Se generan dinámicamente desde Catalog.Groups para mantener la estructura y separar UI del catálogo. -->
         </NavigationView.MenuItems>
+
         <NavigationView.PaneFooter>
-            <ToggleSwitch x:Uid="PowerUser" Header="Power User" Margin="16,0,16,8" Toggled="PowerUser_Toggled" />
+            <ToggleSwitch x:Name="PowerUserToggle"
+                          Header="Power User"
+                          Margin="16,0,16,8" />
         </NavigationView.PaneFooter>
-        <Frame x:Name="ContentFrame"/>
+
+        <Frame x:Name="ContentFrame" />
     </NavigationView>
 </Window>

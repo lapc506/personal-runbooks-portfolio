@@ -231,37 +231,72 @@ public sealed partial class CategoryPage : Page
     private async void Apply_Click(object sender, RoutedEventArgs e)
     {
         if (_group is null || _status is null) return;
-        var ids = _group.Items.Where(i => _toggles.TryGetValue(i.Id, out var t) && t.IsOn).Select(i => i.Id).ToList();
-        var svcs = _group.Items.Where(i => ids.Contains(i.Id)).SelectMany(i => i.Services).ToList();
-        string title = L10n.Get($"NavG{_groupIndex}.Content", _group.Title);
-        if (ids.Count == 0)
+        var selected = _group.Items
+            .Where(i => _toggles.TryGetValue(i.Id, out var t) && t.IsOn)
+            .ToList();
+
+        if (selected.Count == 0)
         {
-            // No crítico: nada que aplicar.
             _status.Text = L10n.Get("Toast.NothingMsg", "Sin cambios: no hay nada seleccionado.");
             Notifier.Show(Notifier.Kind.Partial,
                 L10n.Get("Toast.NothingTitle", "Safe Debloat"),
                 L10n.Get("Toast.NothingMsg", "Sin cambios: no hay nada seleccionado."));
             return;
         }
-        bool ok = await MainWindow.ConfirmAsync(
-            L10n.Format("Confirm.Format", "Se desactivarán {0} servicios en {1}.", svcs.Count, title));
+
+        string title = L10n.Get($"NavG{_groupIndex}.Content", _group.Title);
+        int serviceCount = selected.Sum(i => i.Services.Length);
+        var summary = string.Join("; ", selected.Select(i => i.Label));
+        var explain =
+            $"Este cambio requiere permisos de administrador porque modifica servicios del sistema, configuración de privacidad y/o claves de registro de Windows. " +
+            $"Windows puede mostrar un aviso de seguridad como 'el editor no está verificado' o 'aplicación no publicada'; eso es normal para una herramienta local no firmada, pero aquí la acción es intencional y está limitada a los scripts que has elegido. " +
+            $"Se creará un punto de restauración y cada script se ejecutará por separado para dejar un rollback claro y controlar el riesgo. " +
+            $"Cambios previstos: {serviceCount} elementos de sistema en '{title}'.\n\n" +
+            $"Elementos seleccionados:\n- {string.Join("\n- ", selected.Select(i => i.Label))}\n\n" +
+            $"Al pulsar 'Continuar y pedir UAC', Windows te pedirá confirmar la elevación antes de ejecutar cada script con privilegios de administrador.";
+
+        bool ok = await AdminExecutionService.ConfirmAsync(
+            explain,
+            "Permisos de administrador requeridos",
+            "Continuar y pedir UAC");
         if (!ok) return;
+
         try
         {
-            var json = JsonSerializer.Serialize(new { Services = svcs, Ids = ids });
-            File.WriteAllText(Path.Combine(Path.GetTempPath(), "SafeDebloat-WinUI-Selection.json"), json);
-            _status.Text = L10n.Format("Status.Exported.Format", "Selección exportada ({0} servicios).", svcs.Count);
+            var scriptResults = new List<string>();
+            foreach (var item in selected)
+            {
+                var scriptFile = Path.Combine(AppContext.BaseDirectory, item.ScriptFile);
+                var scriptSummary = $"{item.Label}. Este cambio afecta a: {string.Join(", ", item.Services.Length > 0 ? item.Services : new[] { item.Tip })}";
+
+                bool scriptOk = false;
+                try
+                {
+                    scriptOk = AdminExecutionService.RunScriptAsAdmin(scriptFile, item.Label, scriptSummary);
+                }
+                catch (Exception ex)
+                {
+                    _status.Text = ex.Message;
+                    Notifier.Show(Notifier.Kind.Critical,
+                        L10n.Get("Toast.ErrorTitle", "Safe Debloat"),
+                        $"Error al ejecutar '{item.Label}': {ex.Message}");
+                    return;
+                }
+
+                scriptResults.Add($"{item.Label}: {(scriptOk ? "OK" : "ERROR")}");
+            }
+
+            _status.Text = $"Ejecución completada: {string.Join(" | ", scriptResults)}";
             Notifier.Show(Notifier.Kind.Success,
                 L10n.Get("Toast.OkTitle", "Safe Debloat"),
-                L10n.Format("Toast.OkMsg", "Cambios exportados ({0} servicios).", svcs.Count));
+                $"Se ejecutaron {selected.Count} scripts con privilegios de administrador.");
         }
         catch (Exception ex)
         {
-            // Crítico: ni siquiera se pudo exportar.
             _status.Text = ex.Message;
             Notifier.Show(Notifier.Kind.Critical,
                 L10n.Get("Toast.ErrorTitle", "Safe Debloat"),
-                L10n.Get("Toast.ErrorMsg", "Error al exportar la selección."));
+                $"Error al ejecutar uno de los scripts: {ex.Message}");
         }
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -6,37 +7,86 @@ namespace SafeDebloat;
 
 public sealed partial class MainWindow : Window
 {
+    private readonly Dictionary<string, int> _groupIndexByTag = new();
+
     public MainWindow()
     {
         InitializeComponent();
-        Nav.SelectedItem = Nav.MenuItems[0];
-        ContentFrame.Navigate(typeof(OverviewPage));
+        BuildNavigation();
+        PowerUserToggle.Toggled += PowerUserToggle_Toggled;
+        Nav.SelectionChanged += Nav_SelectionChanged;
+
+        PowerUser.Enabled = false;
+        Nav.SelectedItem = FindMenuItem("Overview");
+        SelectOverview();
     }
 
-    private void PowerUser_Toggled(object sender, RoutedEventArgs e)
+    private void BuildNavigation()
     {
-        if (sender is ToggleSwitch sw) PowerUser.Enabled = sw.IsOn;
+        Nav.MenuItems.Clear();
+
+        var overview = new NavigationViewItem
+        {
+            Content = "Resumen",
+            Tag = "Overview",
+            Icon = new FontIcon { Glyph = "\uE9D2" }
+        };
+        Nav.MenuItems.Add(overview);
+        Nav.MenuItems.Add(new NavigationViewItemSeparator());
+
+        for (var i = 0; i < Catalog.Groups.Count; i++)
+        {
+            var group = Catalog.Groups[i];
+            var item = new NavigationViewItem
+            {
+                Content = group.Title,
+                Tag = $"G{i}",
+                Icon = new FontIcon { Glyph = group.Glyph }
+            };
+
+            _groupIndexByTag[item.Tag as string ?? $"G{i}"] = i;
+            Nav.MenuItems.Add(item);
+        }
+    }
+
+    private void PowerUserToggle_Toggled(object sender, RoutedEventArgs e)
+    {
+        PowerUser.Enabled = PowerUserToggle.IsOn;
     }
 
     private void Nav_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
     {
-        if (args.SelectedItem is not NavigationViewItem item || item.Tag is not string tag) return;
-        if (tag == "Overview") ContentFrame.Navigate(typeof(OverviewPage));
-        else if (tag.StartsWith("G") && int.TryParse(tag.Substring(1), out int gi))
-            ContentFrame.Navigate(typeof(CategoryPage), gi);
+        if (args.SelectedItemContainer is not NavigationViewItem selected)
+            return;
+
+        if (selected.Tag is string tag)
+        {
+            switch (tag)
+            {
+                case "Overview":
+                    SelectOverview();
+                    break;
+                default:
+                    if (_groupIndexByTag.TryGetValue(tag, out var index))
+                        ContentFrame.Navigate(typeof(CategoryPage), index);
+                    break;
+            }
+        }
     }
 
-    // Confirm pattern: XamlRoot is MANDATORY in WinUI 3 (else InvalidOperationException).
-    public static async System.Threading.Tasks.Task<bool> ConfirmAsync(string text)
+    private NavigationViewItem? FindMenuItem(string tag)
     {
-        var dialog = new ContentDialog
+        foreach (NavigationViewItem item in Nav.MenuItems)
         {
-            Title = L10n.Get("Dialog.Title", "Confirmar cambios"),
-            Content = text,
-            PrimaryButtonText = L10n.Get("Dialog.Primary", "Aplicar"),
-            CloseButtonText = L10n.Get("Dialog.Close", "Cancelar"),
-            XamlRoot = App.MainWindow!.Content.XamlRoot
-        };
-        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+            if (string.Equals(item.Tag as string, tag, StringComparison.Ordinal))
+                return item;
+        }
+
+        return null;
+    }
+
+    private void SelectOverview()
+    {
+        ContentFrame.Navigate(typeof(OverviewPage));
     }
 }
