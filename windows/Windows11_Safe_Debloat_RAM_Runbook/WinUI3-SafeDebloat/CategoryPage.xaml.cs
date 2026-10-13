@@ -109,13 +109,15 @@ public sealed partial class CategoryPage : Page
                 Title = L10n.Get("Info.Impl.Title", "Implicaciones"),
                 Message = L10n.Get($"{item.Id}.Impl", desc)
             };
+            var riskText = L10n.Get($"{item.Id}.Risk", item.Tip);
+            var riskBadge = RiskBadgeLabel(item.RiskBadge);
             var infoRisk = new InfoBar
             {
                 IsOpen = true,
                 IsClosable = false,
-                Severity = InfoBarSeverity.Warning,
-                Title = L10n.Get("Info.Risk.Title", "Riesgos"),
-                Message = L10n.Get($"{item.Id}.Risk", item.Tip)
+                Severity = item.NoRisk ? InfoBarSeverity.Success : InfoBarSeverity.Warning,
+                Title = $"{L10n.Get("Info.Risk.Title", "Riesgos")} — {riskBadge}",
+                Message = riskText
             };
             // .ps1 COMPLETO sin filtros, con syntax highlighting estilo WinUI Gallery:
             // RichTextBlock + tokenizador propio (comentarios, strings, cmdlets,
@@ -227,6 +229,16 @@ public sealed partial class CategoryPage : Page
 
     private static SolidColorBrush PsBrush(byte r, byte g, byte b) =>
         new(Microsoft.UI.ColorHelper.FromArgb(255, r, g, b));
+
+    private static string RiskBadgeLabel(RiskBadgeKind riskBadge)
+    {
+        return riskBadge switch
+        {
+            RiskBadgeKind.Reversible => L10n.Get("Info.Risk.Reversible", "Reversible"),
+            RiskBadgeKind.Functional => L10n.Get("Info.Risk.Functional", "Functional"),
+            _ => L10n.Get("Info.Risk.LowRisk", "Low risk")
+        };
+    }
 
     private async void Apply_Click(object sender, RoutedEventArgs e)
     {
